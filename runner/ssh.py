@@ -5,14 +5,17 @@ import traceback
 import paramiko
 from scp import SCPClient
 
-from src.runner.util import info, warning, error, progress, progress4, type_check, update
+from runner.util import progress, progress4, UtilLogger, BaseClass
 
 class RemoteType(Enum):
+    """
+    Types of remote connection, used by class SSH.
+    """
     SSH = auto()
     SCP = auto()
     SFTP = auto()
 
-class SSH():
+class SSH(BaseClass):
     RECONNECT_TIME_OUT = 20
     RECONNECT_COUNT = 1
     RECONNECT_WAITING = 0
@@ -26,18 +29,29 @@ class SSH():
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.scpClient = None
+        
+        # Logger
+        # self.logger = UtilLogger(module='Runner', submodule='SSH', verbose=UtilLogger.INFO)
+        self.logger = self._set_UtilLogger(module='Runner', submodule='SSH', verbose=UtilLogger.INFO)
 
     def __info(self, *args, **kwargs) -> None:
-        print(f"[SSH] Info: {info(*args, **kwargs)}")
+        # print(f"[Runner.SSH] Info: {info(*args, **kwargs)}")
+        # self.logger.info(*args, **kwargs)
+        super()._info(*args, **kwargs)
 
     def __warning(self, *args, **kwargs) -> None:
-        print(f"[SSH] Warning: {warning(*args, **kwargs)}")
+        # print(f"[Runner.SSH] Warning: {warning(*args, **kwargs)}")
+        # self.logger.warning(*args, **kwargs)
+        super()._warning(*args, **kwargs)
         
     def __error(self, *args, **kwargs) -> None:
-        print(f"[SSH] Error: {error(*args, **kwargs)}")
+        # print(f"[Runner.SSH] Error: {error(*args, **kwargs)}")
+        # self.logger.error(*args, **kwargs)
+        super()._error(*args, **kwargs)
 
     def __type_check(self, *args, **kwargs) -> None:
-        type_check(*args, **kwargs)
+        # type_check(*args, **kwargs)
+        super()._type_check(*args, **kwargs)
     
     def __retrying_execution(self, remote_type: RemoteType, fn_name: str, name: str, retry_count: int, *args, **kargs):
         self.__type_check(obj=remote_type, obj_type=RemoteType, obj_name='remote_type', is_allow_none=False)
@@ -74,15 +88,15 @@ class SSH():
                         self.reconnect()
         finally:
             if is_successed:
-                self.__info(f"SUCCESSED: {name}")
+                self.__info(f"SUCCESSED - {name}")
             else:
-                self.__error(f"FAILED: {name}")
+                self.__error(f"FAILED - {name}")
             return res
 
     def connect(self, timeout: int=20, retry_count: int=3):
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
 
-        self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='connect', name="SSH connection", retry_count=retry_count, 
+        self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='connect', name=f"SSH connect to '{self.hostname}'", retry_count=retry_count, 
                                   hostname=self.hostname, port=self.port, username=self.username, password=self.password, timeout=timeout)
         # self.scpClient = SCPClient(self.client.get_transport(), progress=progress)
         self.scpClient = SCPClient(self.client.get_transport(), progress4=progress4)
@@ -100,7 +114,7 @@ class SSH():
         self.__type_check(obj=is_show_result, obj_type=bool, obj_name='is_show_result', is_allow_none=False)
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
 
-        stdin, stdout, stderr = self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='exec_command', name=f"SSH command: {command}", retry_count=retry_count, command=command)
+        stdin, stdout, stderr = self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='exec_command', name=f"SSH execute command '{command}'", retry_count=retry_count, command=command)
 
         if is_show_result:
             output = ""
@@ -125,7 +139,7 @@ class SSH():
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
 
         with self.scpClient as scp:
-            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='put', name='SCP put', retry_count=retry_count, files=files, 
+            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='put', name=f"SCP put files from '{files}' to '{remote_path}'", retry_count=retry_count, files=files, 
                                       remote_path=remote_path, recursive=recursive, preserve_times=preserve_times)
 
     def putfo(self, fl, remote_path: str, mode: str='0644', size: int=None, retry_count: int=3):
@@ -135,7 +149,7 @@ class SSH():
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
 
         with self.scpClient as scp:
-            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='putfo', name='SCP put byte', retry_count=retry_count, fl=fl, 
+            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='putfo', name=f"SCP put bytes to '{remote_path}'", retry_count=retry_count, fl=fl, 
                                       remote_path=remote_path, mode=mode, size=size)
 
     def get(self, remote_path: str, local_path: str='', recursive: bool=False, preserve_times: bool=False, retry_count: int=3):
@@ -145,5 +159,5 @@ class SSH():
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
 
         with self.scpClient as scp:
-            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='get', name='SCP get', retry_count=retry_count, remote_path=remote_path, 
+            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='get', name=f"SCP get files from '{remote_path}' to '{local_path}'", retry_count=retry_count, remote_path=remote_path, 
                                       local_path=local_path, recursive=recursive, preserve_times=preserve_times)

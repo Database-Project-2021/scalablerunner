@@ -1,39 +1,67 @@
-# A sample Python project
+# Scalable Runner
 
-![Python Logo](https://www.python.org/static/community_logos/python-logo.png "Sample inline image")
+The scalable runner integrate several pacakages that can execute the Python function/shell command remotely/locally. It can also schedule tasks to specific resources(ex: GPUs) automatically.
 
-A sample project that exists as an aid to the [Python Packaging User
-Guide][packaging guide]'s [Tutorial on Packaging and Distributing
-Projects][distribution tutorial].
+`Runner` consist of 3 modules:
 
-This project does not aim to cover best practices for Python project
-development as a whole. For example, it does not provide guidance or tool
-recommendations for version control, documentation, or testing.
+- [TaskRnner](#TaskRunner): A scalable task runner can schedule tasks to different groups of resources/machines. All you need to do is writting down the config file.
+- [SSH](#SSH): A warpper of [paramiko](https://github.com/paramiko/paramiko) and we've implemented **auto-retrying** feature to guarantee the task can always be done.
+- [DBRunner](#DBRunner): 
 
-[The source for this project is available here][src].
+## TaskRunner
 
-Most of the configuration for a Python project is done in the `setup.py` file,
-an example of which is included in this project. You should edit this file
-accordingly to adapt this sample project to your needs.
+### Usage
 
-----
+An example config: 
 
-This is the README file for the project.
+```python
+from runner.task_runner import TaskRunner
 
-The file should use UTF-8 encoding and can be written using
-[reStructuredText][rst] or [markdown][md use] with the appropriate [key set][md
-use]. It will be used to generate the project webpage on PyPI and will be
-displayed as the project homepage on common code-hosting services, and should be
-written for that purpose.
+def test_run(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):
+    import os
+    import jax.numpy as np
+    os.environ["CUDA_VISIBLE_DEVICES"] = f'{gpu}'
+    print(f"Epoch: {epoch}, Decay: {decay}, Dataset Size: {dataset_size}, Machine: {machine}, GPU: {gpu}")
+    sleep(5)
+       
+if __name__ == '__main__':
+    config = {
+        'Section: Search for Decay, Epoch, and Dataset Size': { # Each section would be executed sequentially.
+            'GTX 2080': { # The groups under the same section would be executed concurrently
+                'Call': test_run, # Call can be either a function call or a command in string
+                'Param': { # The TaskRunner would list all kinds of combination of the parameters and execute them once
+                    'decay': ['exp', 'anneal', 'static'],
+                    'epoch': [100, 1000, 10000],
+                    'dataset_size': [1000, 2000, 3000]
+                },
+                'Async': { # The task under the same group would be schedule to the resources by TaskRunner during runtime.
+                    'machine': [0, 1],
+                    'gpu': [0, 1]
+                }
+            },    
+            'CPU':{ # 'group-2' can be seem as another resource group that handle different task from 'group-1' during 'section-1'
+                'Call': 'ls',
+                'Param': {
+                    '': ['-l', '-a', '-la']  
+                },
+                'Async': {
+                    '': []
+                }   
+            }    
+        },
+        'Another Section': {
+            'A dummy group': {
+                'Call': 'ls',
+                'Param': {
+                    '': ['-a']
+                }
+            }
+        }
+    }
+    
+    tr = TaskRunner(config=config)
+    tr.run()
+```
+## SSH
 
-Typical contents for this file would include an overview of the project, basic
-usage examples, etc. Generally, including the project changelog in here is not a
-good idea, although a simple “What's New” section for the most recent version
-may be appropriate.
-
-[packaging guide]: https://packaging.python.org
-[distribution tutorial]: https://packaging.python.org/tutorials/packaging-projects/
-[src]: https://github.com/pypa/sampleproject
-[rst]: http://docutils.sourceforge.net/rst.html
-[md]: https://tools.ietf.org/html/rfc7764#section-3.5 "CommonMark variant"
-[md use]: https://packaging.python.org/specifications/core-metadata/#description-content-type-optional
+## DBRunner

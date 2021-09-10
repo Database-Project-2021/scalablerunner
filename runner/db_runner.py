@@ -6,10 +6,10 @@ from typing import Tuple
 
 import toml
 
-from src.runner.util import delay, info, warning, error, progress, progress4, type_check, update
-from src.runner.ssh import SSH
+from runner.util import BaseClass, UtilLogger, info, warning, error, type_check, update
+from runner.ssh import SSH
 
-class DBRunner():
+class DBRunner(BaseClass):
     # SSH
     RETRY_COUNT = 3
     # Auto-bencher
@@ -59,20 +59,27 @@ class DBRunner():
     def __init__(self) -> None:
         self.is_config_bencher = False
 
-    def __info(self, msg: str) -> None:
-        if msg is not None:
-            print(f"[DB Runner] Info: {info(msg=msg)}")
+        # Logger
+        self.logger = self._set_UtilLogger(module='Runner', submodule='DBRunner', verbose=UtilLogger.INFO)
 
-    def __warning(self, msg: str) -> None:
-        if msg is not None:
-            print(f"[DB Runner] Warning: {warning(msg=msg)}")
+    def __info(self, *args, **kwargs) -> None:
+        # if msg is not None:
+        #     print(f"[DB Runner] Info: {info(msg=msg)}")
+        super()._info(*args, **kwargs)
+
+    def __warning(self, *args, **kwargs) -> None:
+        # if msg is not None:
+        #     print(f"[DB Runner] Warning: {warning(msg=msg)}")
+        super()._warning(*args, **kwargs)
         
-    def __error(self, msg: str) -> None:
-        if msg is not None:
-            print(f"[DB Runner] Error: {error(msg=msg)}")
+    def __error(self, *args, **kwargs) -> None:
+        # if msg is not None:
+        #     print(f"[DB Runner] Error: {error(msg=msg)}")
+        super()._error(*args, **kwargs)
 
     def __type_check(self, *args, **kwargs) -> None:
-        type_check(*args, **kwargs)
+        # type_check(*args, **kwargs)
+        super()._type_check(*args, **kwargs)
     
     def __load_toml(self, toml_file: str) -> dict:
         """

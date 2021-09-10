@@ -4,7 +4,6 @@ from time import sleep
 import types
 from typing import Callable, Tuple, Type, TypeVar, Union
 from pygments.console import colorize
-import subprocess
 from multiprocessing import Process, Queue
 
 def info(msg: str) -> None:
@@ -20,8 +19,12 @@ def delay():
     sleep(1)
 
 class ProcessTask():
+    """
+    An abstract class defines the task that can be executed by ProcessPool
+    """
     def run(self):
         pass
+
 class Task(ProcessTask):
     def __init__(self, call: Union[str, Callable]) -> None:
         self.call = call
