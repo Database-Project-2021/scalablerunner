@@ -1,201 +1,13 @@
-from enum import Enum, auto
+# from enum import Enum, auto
 import io
 import os
-import sys
-from time import sleep
-import types
 import traceback
-from typing import Callable, Collection, Tuple, Type, TypeVar, Union
-from pygments.console import colorize
+from typing import Tuple
 
-import paramiko
-from scp import SCPClient
 import toml
 
-from util import delay, info, warning, error, progress, progress4, type_check, update
-    
-# def delay():
-#     sleep(1)
-
-# def info(msg: str) -> None:
-#     return colorize('green', msg)
-
-# def warning(msg: str) -> None:
-#     return colorize('yellow', msg)
-    
-# def error(msg: str) -> None:
-#     return colorize('red', msg)
-
-# def progress(filename, size, sent):
-#     sys.stdout.write("%s's progress: %.2f%%   \r" % (filename, float(sent)/float(size)*100))
-#     if float(sent)/float(size) >= 1:
-#         sys.stdout.write("\n")
-
-# def progress4(filename, size, sent, peername):
-#     sys.stdout.write("(%s:%s) %s's progress: %.2f%%   \r" % (peername[0], peername[1], filename, float(sent)/float(size)*100) )
-#     if float(sent)/float(size) >= 1:
-#         sys.stdout.write("\n")
-
-# def type_check(obj: object, obj_type: Type, obj_name: str, is_allow_none: bool) -> None:
-#     if obj_type is callable:
-#         if not callable(obj):
-#             if not is_allow_none:
-#                 raise TypeError(f"Parameter '{obj_name}' should be a callable, but a {type(obj)}")
-#             else:
-#                 if not (obj == None):
-#                     raise TypeError(f"Parameter '{obj_name}' should be a callable or None, but a {type(obj)}")
-#     else:
-#         if not isinstance(obj, obj_type):
-#             if not is_allow_none:
-#                 raise TypeError(f"Parameter '{obj_name}' should be {obj_type}, but a {type(obj)}")
-#             else:
-#                 if not (obj == None):
-#                     raise TypeError(f"Parameter '{obj_name}' should be {obj_type} or None, but a {type(obj)}")
-
-class RemoteType(Enum):
-        SSH = auto()
-        SCP = auto()
-        SFTP = auto()
-class SSH():
-    RECONNECT_TIME_OUT = 20
-    RECONNECT_COUNT = 1
-    RECONNECT_WAITING = 2
-
-    def __init__(self, hostname: str, username: str, password: str=None, port: int=22) -> None:
-        self.hostname = hostname
-        self.username = username
-        self.password = password
-        self.port = port
-
-        self.client = paramiko.SSHClient()
-        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.scpClient = None
-
-    def __info(self, *args, **kwargs) -> None:
-        print(f"[SSH] Info: {info(*args, **kwargs)}")
-
-    def __warning(self, *args, **kwargs) -> None:
-        print(f"[SSH] Warning: {warning(*args, **kwargs)}")
-        
-    def __error(self, *args, **kwargs) -> None:
-        print(f"[SSH] Error: {error(*args, **kwargs)}")
-
-    def __type_check(self, *args, **kwargs) -> None:
-        type_check(*args, **kwargs)
-    
-    def __retrying_execution(self, remote_type: RemoteType, fn_name: str, name: str, retry_count: int, *args, **kargs):
-        self.__type_check(obj=remote_type, obj_type=RemoteType, obj_name='remote_type', is_allow_none=False)
-        self.__type_check(obj=fn_name, obj_type=str, obj_name='fn_name', is_allow_none=False)
-        self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
-        
-        try_counter = retry_count + 1
-        is_successed = False
-        res = None
-        try:
-            for i in range(try_counter):
-                try:
-                    if self.client.get_transport() is not None:
-                        while not self.client.get_transport().is_active():
-                            pass
-                    if remote_type is RemoteType.SSH:
-                        res = getattr(self.client, fn_name)(*args, **kargs)
-                    elif remote_type is RemoteType.SCP:
-                        res = getattr(self.scpClient, fn_name)(*args, **kargs)
-                    else:
-                        raise ValueError(f"No such type of operation in 'RemoteType'")
-                    is_successed = True
-                    break
-                except:
-                    is_successed = False
-                    if i == 0 and try_counter > 1:
-                        traceback.print_exc()
-                        self.__warning(f"{name} failed, re-trying.")
-                        self.reconnect()
-                    elif i > 0:
-                        traceback.print_exc()
-                        self.__warning(f"{i}-th re-try failed.")
-                        self.reconnect()
-        finally:
-            if is_successed:
-                self.__info(f"SUCCESSED: {name}")
-            else:
-                self.__error(f"FAILED: {name}")
-            return res
-
-    def connect(self, timeout: int=20, retry_count: int=3):
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
-
-        self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='connect', name="SSH connection", retry_count=retry_count, 
-                                  hostname=self.hostname, port=self.port, username=self.username, password=self.password, timeout=timeout)
-        # self.scpClient = SCPClient(self.client.get_transport(), progress=progress)
-        self.scpClient = SCPClient(self.client.get_transport(), progress4=progress4)
-
-    def reconnect(self):
-        self.__warning(f"Reconnecting... Waiting for {self.RECONNECT_WAITING}s")
-        self.client.close()
-        sleep(self.RECONNECT_WAITING)
-        self.connect(timeout=self.RECONNECT_TIME_OUT, retry_count=self.RECONNECT_COUNT)
-
-    def exec_command(self, command: str, is_show_result: bool=True, retry_count: int=3):
-        self.__type_check(obj=is_show_result, obj_type=bool, obj_name='is_show_result', is_allow_none=False)
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
-
-        stdin, stdout, stderr = self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='exec_command', name=f"SSH command: {command}", retry_count=retry_count, command=command)
-
-        if is_show_result:
-            output = ""
-            for line in stdout:
-                output = output + line
-            if output != "":
-                print(output)
-
-            output = ""
-            for line in stderr:
-                output = output + line
-            if output != "":
-                self.__error(f"An error occured while executing SSH remote command.")
-                print(output)
-
-        return stdin, stdout, stderr
-
-    def put(self, files: str, remote_path: str, recursive: bool=False, preserve_times: bool=False, retry_count: int=3):
-        if self.scpClient is None:
-            raise BaseException(f"Please establish a SSH connection at first.")
-        
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
-
-        with self.scpClient as scp:
-            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='put', name='SCP put', retry_count=retry_count, files=files, 
-                                      remote_path=remote_path, recursive=recursive, preserve_times=preserve_times)
-
-    def putfo(self, fl, remote_path: str, mode: str='0644', size: int=None, retry_count: int=3):
-        if self.scpClient is None:
-            raise BaseException(f"Please establish a SSH connection at first.")
-
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
-
-        with self.scpClient as scp:
-            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='putfo', name='SCP put byte', retry_count=retry_count, fl=fl, 
-                                      remote_path=remote_path, mode=mode, size=size)
-
-    def get(self, remote_path: str, local_path: str='', recursive: bool=False, preserve_times: bool=False, retry_count: int=3):
-        if self.scpClient is None:
-            raise BaseException(f"Please establish a SSH connection at first.")
-        
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
-
-        with self.scpClient as scp:
-            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='get', name='SCP get', retry_count=retry_count, remote_path=remote_path, 
-                                      local_path=local_path, recursive=recursive, preserve_times=preserve_times)
-
-# def update(d: dict, u: dict) -> dict:
-#     for k, v in u.items():
-#         if isinstance(v, Collection.abc.Mapping):
-#             d[k] = update(d.get(k, {}), v)
-#         else:
-#             d[k] = v
-#     return d
+from src.runner.util import delay, info, warning, error, progress, progress4, type_check, update
+from src.runner.ssh import SSH
 
 class DBRunner():
     # SSH
@@ -228,7 +40,7 @@ class DBRunner():
     # Directory of base-config 
     CONFIG_DIR = 'config'
     CURRENT_PYTHON_DIR = os.path.dirname(os.path.realpath(__file__))
-    BASE_CONFIGS_DIR = os.path.join(CURRENT_PYTHON_DIR, CONFIG_DIR)
+    BASE_CONFIGS_DIR = os.path.join('data', CONFIG_DIR)
 
     # Path of base-config 
     BASE_BENCHER_CONFIG_PATH = os.path.join(BASE_CONFIGS_DIR, BENCHER_CONFIG)
@@ -316,11 +128,19 @@ class DBRunner():
 
         self.host = SSH(hostname=self.hostname, username=self.username, password=self.password)
         try:
-            self.__info(f"Connecting to remote host.")
+            self.__info(f"Connecting to remote host")
             self.host.connect(retry_count=self.RETRY_COUNT)
-            self.__info(f"Connected to remote host.")
+            self.__info(f"Connected to remote host")
         except:
-            self.__error(f"Failed to remote host.")
+            self.__error(f"Failed to connect remote host")
+        
+    def close(self):
+        try:
+            self.__info(f"Closing the remote host")
+            self.host.close()
+            self.__info(f"Closed to remote host")
+        except:
+            self.__error(f"Failed to close remote host")
 
     def config_bencher(self, sequencer: str=None, servers: list=None, clients: list=None, 
                        user_name: str=None, remote_work_dir: str=None, 
@@ -407,6 +227,7 @@ class DBRunner():
         
         if not (max_client_per_machine is None):
             self.auto_bencher_sec['max_client_per_machine'] = str(max_client_per_machine)
+        self.is_config_cluster = True
 
     def upload_bencher_config(self):
         # Upload bencher.toml
@@ -420,7 +241,6 @@ class DBRunner():
     def upload_load_config(self):
         # Upload load.toml
         fl = self.__dump_toml(self.load_config)
-
         self.__scp_putfo(fl=fl, remote_path=self.DBRUNNER_LOAD_CONFIG_PATH,
                          going_msg=f"Uploading config 'load.toml'...",
                          finished_msg=f"Uploaded config 'load.toml'",
@@ -456,13 +276,17 @@ class DBRunner():
                                 error_msg=f"Failed to initialize database")
 
     def upload_jars(self, server_jar: str, client_jar: str):
+        if not self.is_config_cluster:
+            raise BaseException(f"Please call method config_cluster() at first.")
+
         try:
             self.__info(f"Uploading JARs...")
             self.__scp_put(files=server_jar, remote_path=self.jar_dir)
             self.__scp_put(files=client_jar, remote_path=self.jar_dir)
             self.__info(f"Uploaded JARs...")
         except:
-            self.__info(f"Failed to upload JARs")
+            # traceback.print_exc()
+            self.__error(f"Failed to upload JARs")
 
     def __update_cluster_config(self, config: dict):
         if not config.get('auto_bencher', None) is None:
@@ -578,54 +402,3 @@ class DBRunner():
 
     def kill_java(self):
         self.execute(command="pkill -f java")
-
-def run(fn):
-    fn(files='/home/weidagogo/sychou/db/DBRunner/jars/server.jar', remote_path='/home/db-under/db_runner_workspace/auto-bencher/jars/latest/')
-
-def testing():
-    ip = "140.114.85.15"
-    username = "db-under"
-    password = "db-under"
-
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(hostname=ip, username=username, password=password)
-    scpClient = SCPClient(client.get_transport(), progress4=progress4)
-    fn = scpClient.put
-    for i in range(10):
-        try:
-            # scpClient.put(files='/home/weidagogo/sychou/db/DBRunner/jars/server.jar', remote_path='/home/db-under/db_runner_workspace/auto-bencher/jars/latest/')
-            run(fn)
-            print(f"Testing Success: {info('Upload Success')}")
-        except:
-            print(f"Testing Error: {error('Upload Failed')}")
-            client.close()
-            client.connect(hostname=ip, username=username, password=password)
-            scpClient = SCPClient(client.get_transport(), progress4=progress4)
-            print(f"Testing Warning: {warning('Reconnected')}")
-
-if __name__ == '__main__':
-    ip = "140.114.85.15"
-    username = "db-under"
-    password = "db-under"
-
-    # testing()
-
-    # client = SSH(hostname=ip, username=username, password=password)
-    # client.connect()
-    # stdin, stdout, stderr = client.exec_command(command='cd /home/db-under/sychou/autobench; ls -l')
-    # client.get(remote_path='/home/db-under/sychou/autobench/share.sh')
-    # client.put(files='/home/weidagogo/sychou/db/ouModels.ipynb', remote_path='/home/db-under/sychou/autobench/ouModels.ipynb')
-
-    dr = DBRunner()
-    dr.connect(hostname=ip, username=username, password=password)
-    dr.config_bencher(sequencer="192.168.1.32", 
-                      servers=["192.168.1.31", "192.168.1.30", "192.168.1.27", "192.168.1.26"], 
-                      clients=["192.168.1.9", "192.168.1.8"], package_path='/home/db-under/sychou/autobench/package/jdk-8u211-linux-x64.tar.gz')
-    dr.config_cluster(server_count=4, jar_dir='latest')
-    dr.init()
-    dr.upload_jars(server_jar='/home/weidagogo/sychou/db/DBRunner/jars/server.jar', 
-                    client_jar='/home/weidagogo/sychou/db/DBRunner/jars/client.jar')
-    dr.load()
-    dr.bench(reports_path='/home/weidagogo/sychou/db/results', is_delete_reports=False)
-    dr.kill_java()

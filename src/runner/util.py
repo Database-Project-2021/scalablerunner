@@ -3,8 +3,11 @@ from time import sleep
 from typing import Collection, Type
 from pygments.console import colorize
 
+def delay_time():
+    return 0
+
 def delay():
-    sleep(1)
+    sleep(delay_time())
 
 def info(msg: str) -> None:
     return colorize('green', msg)
@@ -14,6 +17,19 @@ def warning(msg: str) -> None:
     
 def error(msg: str) -> None:
     return colorize('red', msg)
+
+class Logger():
+    def __init__(self, name: str) -> None:
+        self.name = name
+    
+    def info(self, msg: str) -> None:
+        print(f"[{self.name}] Info: {info(msg)}")
+
+    def warning(self, msg: str) -> None:
+        print(f"[{self.name}] Warning: {warning(msg)}")
+        
+    def error(self, msg: str) -> None:
+        print(f"[{self.name}] Error: {error(msg)}")
 
 def progress(filename, size, sent):
     sys.stdout.write("%s's progress: %.2f%%   \r" % (filename, float(sent)/float(size)*100))
