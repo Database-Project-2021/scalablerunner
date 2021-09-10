@@ -1,0 +1,48 @@
+[auto_bencher]
+jar_dir = "latest"
+server_count = "4" # without the sequencer
+server_client_ratio = "1.0" # client / server
+max_server_per_machine = "1"
+max_client_per_machine = "3"
+
+[vanilladb]
+"org.vanilladb.core.storage.buffer.BufferMgr.BUFFER_POOL_SIZE" = "1000000" # 4GB
+"org.vanilladb.core.storage.file.io.IoAllocator.USE_O_DIRECT" = "true"
+
+[vanillabench]
+"org.vanilladb.bench.BenchmarkerParameters.BENCH_TYPE" = "4"
+"org.vanilladb.bench.BenchmarkerParameters.WARM_UP_INTERVAL" = "0"
+"org.vanilladb.bench.BenchmarkerParameters.BENCHMARK_INTERVAL" = "300000" # normal
+#"org.vanilladb.bench.BenchmarkerParameters.BENCHMARK_INTERVAL" = "1000000" # debug
+"org.vanilladb.bench.BenchmarkerParameters.RTE_SLEEP_TIME" = "0"
+"org.vanilladb.bench.BenchmarkerParameters.NUM_RTES" = "200"
+"org.vanilladb.bench.StatisticMgr.GRANULARITY" = "15000"
+
+[elasql]
+"org.elasql.server.Elasql.SERVICE_TYPE" = "3"
+"org.elasql.remote.groupcomm.client.BatchSpcSender.COMM_BATCH_SIZE" = "20"
+"org.elasql.storage.tx.recovery.DdRecoveryMgr.DISABLE_STORAGE_LOGGING" = "true"
+# T-Part & Hermes
+# "org.elasql.schedule.tpart.TPartPartitioner.NUM_TASK_PER_SINK" = "1000"
+"org.elasql.schedule.tpart.TPartScheduler.SCHEDULE_BATCH_SIZE" = "200"
+# "org.elasql.schedule.tpart.TPartScheduler.SCHEDULE_BATCH_SIZE" = "1"
+# T-Part
+"org.elasql.schedule.tpart.CostAwareNodeInserter.BETA" = "0.8"
+# Hermes
+"org.elasql.schedule.tpart.hermes.FusionTable.EXPECTED_MAX_SIZE" = "10000000"
+"org.elasql.schedule.tpart.hermes.HermesNodeInserter.IMBALANCED_TOLERANCE" = "0.1"
+"org.elasql.perf.tpart.ai.Estimator.ENABLE_COLLECTING_DATA" = "true"
+
+[elasqlbench]
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.DATABASE_MODE" = "1" # Single Table
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.WORKLOAD_TYPE" = "2" # Google Workloads
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.INIT_RECORD_PER_PART" = "100000"
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.RW_TX_RATE" = "0.5"
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.DIST_TX_RATE" = "0.5"
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.TX_RECORD_COUNT" = "2"
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.USE_DYNAMIC_RECORD_COUNT" = "false"
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.ADD_INSERT_IN_WRITE_TX" = "0"
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.ZIPFIAN_PARAMETER" = "0.99"
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.GOOGLE_TRACE_FILE" = "/opt/shared/google-workloads-2min-3days.csv"
+"org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.GOOGLE_TRACE_LENGTH" = "2160"
+

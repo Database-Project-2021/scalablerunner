@@ -1,0 +1,20 @@
+
+[system]
+user_name = "db-under"
+remote_work_dir = "auto-bencher-workspace"
+
+[jdk]
+use_custom_jdk = true # Reserved.
+dir_name = "jdk1.8.0_211"
+package_path = "package/jdk-8u211-linux-x64.tar.gz"
+
+[jdk.vmargs]
+sequencer = "-Xmx16g -Xms16g  -verbose:gc -Xloggc:gc.log -XX:+PrintGCTimeStamps -XX:+PrintGCDetails"
+servers = "-Xmx16g -Xms16g  -verbose:gc -Xloggc:gc.log -XX:+PrintGCTimeStamps -XX:+PrintGCDetails"
+clients = "-Xmx8g -Xms8g"
+
+[machines]
+# [Optional] if no sequencer is set, the system will pick one of servers as the sequencer.
+sequencer = "192.168.1.32"
+servers = ["192.168.1.31", "192.168.1.30", "192.168.1.27", "192.168.1.26"]
+clients = ["192.168.1.9", "192.168.1.8"]
