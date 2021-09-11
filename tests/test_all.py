@@ -260,7 +260,6 @@ class TestDBRunner(unittest.TestCase):
 
     def test_bench(self):
         try:
-            # self.dr.connect(hostname=self.HOSTNAME, username=self.USERNAME, password=self.USERNAME)
             self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
             self.dr.load()
             for i in range(1):
@@ -269,21 +268,35 @@ class TestDBRunner(unittest.TestCase):
         except:
             traceback.print_exc()
             self.__error(f"Fail to pass test_bench()")
-        # finally:
-        #     self.dr.close()
 
-    # def test_module(self):
-    #     # pass
-    #     dr.config_bencher(sequencer="192.168.1.32", 
-    #                     servers=["192.168.1.31", "192.168.1.30", "192.168.1.27", "192.168.1.26"], 
-    #                     clients=["192.168.1.9", "192.168.1.8"], package_path='/home/db-under/sychou/autobench/package/jdk-8u211-linux-x64.tar.gz')
-    #     dr.config_cluster(server_count=4, jar_dir='latest')
-    #     dr.init()
-    #     dr.upload_jars(server_jar='/home/weidagogo/sychou/db/DBRunner/jars/server.jar', 
-    #                     client_jar='/home/weidagogo/sychou/db/DBRunner/jars/client.jar')
-    #     dr.load()
-    #     dr.bench(reports_path='/home/weidagogo/sychou/db/results', is_delete_reports=False)
-    #     dr.kill_java()
+def suite():
+    suite = unittest.TestSuite()
+
+    # Test Util
+    suite.addTest(TestUtil('test_info'))
+    suite.addTest(TestUtil('test_warning'))
+    suite.addTest(TestUtil('test_error'))
+    suite.addTest(TestUtil('test_Logger'))
+    
+    # Test SSH
+    suite.addTest(TestSSH('test_connect'))
+    suite.addTest(TestSSH('test_exec_command'))
+    suite.addTest(TestSSH('test_put'))
+    suite.addTest(TestSSH('test_putfo'))
+    suite.addTest(TestSSH('test_get'))
+
+    # Test TaskRunner
+    suite.addTest(TestTaskRunner('test_run'))
+
+    # Test DBRunner
+    suite.addTest(TestDBRunner('test_connect'))
+    suite.addTest(TestDBRunner('test_upload_jars'))
+    suite.addTest(TestDBRunner('test_load'))
+    suite.addTest(TestDBRunner('test_bench'))
+    return suite
 
 if __name__ == '__main__':
-    unittest.main()
+    # unittest.main()
+    # python -m unittest tests.test_all.TestDBRunner.test_upload_jars
+    test_runner = unittest.TextTestRunner(failfast=True)
+    test_runner.run(suite())
