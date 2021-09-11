@@ -87,7 +87,7 @@ class DBRunner(BaseClass):
         """
         return toml.load(toml_file)
 
-    def __dump_toml(self, toml_dict) -> str:
+    def __dump_toml(self, toml_dict: dict) -> str:
         """
         Dump dictionary to string in toml format
         """
@@ -128,7 +128,14 @@ class DBRunner(BaseClass):
         except:
             self.__error(error_msg)
 
-    def connect(self, hostname: str, username: str, password: str):
+    def connect(self, hostname: str, username: str=None, password: str=None) -> None:
+        """
+        Connect to the host that ``Auto-Bencher`` locates
+
+        :param str hostname: The host IP/URL
+        :param str username: The username logins to
+        :param str password: The password logins to
+        """
         self.hostname = str(hostname)
         self.username = str(username)
         self.password = str(password)
@@ -141,7 +148,10 @@ class DBRunner(BaseClass):
         except:
             self.__error(f"Failed to connect remote host")
         
-    def close(self):
+    def close(self) -> None:
+        """
+        Close the connection to ``Auto-Bencher`` host.
+        """
         try:
             self.__info(f"Closing the remote host")
             self.host.close()
@@ -211,6 +221,9 @@ class DBRunner(BaseClass):
             raise ValueError(f"Too much client, the number of client must <= {max_client_count}, but {client_count}")
     
     def config_cluster(self, jar_dir: str, server_count: int=None, server_client_ratio: float=None, max_server_per_machine: int=None, max_client_per_machine: int=None):
+        """
+        
+        """
         if not self.is_config_bencher:
             raise BaseException(f"Please call method config_bencher() to config bencher.toml at first.")
 
@@ -261,9 +274,11 @@ class DBRunner(BaseClass):
                          finished_msg=f"Uploaded config 'bench.toml'", 
                          error_msg=f"Failed to upload config 'bench.toml'")
 
-    def init(self):
+    def init(self) -> Tuple:
         """
-        First use
+        Initialize ElaSQL and Auto-Bencher according to the settings that is set up with the method ``DBRunner.config_bencher``
+        :return: A tupel contains the standard input/output/error stream after executing the command.
+        :rtype: list, list, list
         """
         if not self.is_config_bencher:
             raise BaseException(f"Please call method config_bencher() to config bencher.toml at first.")
@@ -277,10 +292,12 @@ class DBRunner(BaseClass):
         self.upload_bencher_config()
 
         # Init Auto-bencher
-        self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} init', 
-                                going_msg=f"Initializing database...", 
-                                finished_msg=f"Initialized database", 
-                                error_msg=f"Failed to initialize database")
+        stdin, stdout, stderr = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} init', 
+                                                        going_msg=f"Initializing database...", 
+                                                        finished_msg=f"Initialized database", 
+                                                        error_msg=f"Failed to initialize database")
+        
+        return stdin, stdout, stderr
 
     def upload_jars(self, server_jar: str, client_jar: str):
         if not self.is_config_cluster:
@@ -328,10 +345,11 @@ class DBRunner(BaseClass):
         self.upload_load_config()
 
         # Run load test bed
-        self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} load -d {self.DB_NAME} -p {self.LOAD_CONFIG}', 
-                                going_msg=f"Loading test bed...", 
-                                finished_msg=f"Loaded test bed", 
-                                error_msg=f"Failed to load test bed")
+        stdin, stdout, stderr = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} load -d {self.DB_NAME} -p {self.LOAD_CONFIG}', 
+                                                        going_msg=f"Loading test bed...", 
+                                                        finished_msg=f"Loaded test bed", 
+                                                        error_msg=f"Failed to load test bed")
+        return stdin, stdout, stderr
 
     def collect_results(self, name: str, cpu: str='transaction-cpu-time-server-', 
                         latency: str='transaction-latency-server-', 
@@ -392,20 +410,24 @@ class DBRunner(BaseClass):
         self.upload_bench_config()
 
         # Run benchmark
-        self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} benchmark -d {self.DB_NAME} -p {self.BENCH_CONFIG}', 
-                                going_msg=f"Benchmarking...", 
-                                finished_msg=f"Benchmarked", 
-                                error_msg=f"Failed to benchmark")
+        stdin, stdout, stderr = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} benchmark -d {self.DB_NAME} -p {self.BENCH_CONFIG}', 
+                                                        going_msg=f"Benchmarking...", 
+                                                        finished_msg=f"Benchmarked", 
+                                                        error_msg=f"Failed to benchmark")
 
         # Collect reports
         self.collect_results(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
         self.pull_reports_to_local(name=self.REPORTS_ON_HOST_DIR, path=reports_path, is_delete_reports=is_delete_reports)
 
+        return stdin, stdout, stderr
+
     def execute(self, command: str):
-        self.__ssh_exec_command(f"cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} exec --command {command}", 
-                                going_msg=f"Executing command {command}...", 
-                                finished_msg=f"Executed command {command}", 
-                                error_msg=f"Failed to execute command {command}")
+        stdin, stdout, stderr = self.__ssh_exec_command(f"cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} exec --command {command}", 
+                                                        going_msg=f"Executing command {command}...", 
+                                                        finished_msg=f"Executed command {command}", 
+                                                        error_msg=f"Failed to execute command {command}")
+        return stdin, stdout, stderr
 
     def kill_java(self):
-        self.execute(command="pkill -f java")
+        stdin, stdout, stderr = self.execute(command="pkill -f java")
+        return stdin, stdout, stderr

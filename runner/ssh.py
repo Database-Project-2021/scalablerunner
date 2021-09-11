@@ -25,7 +25,7 @@ class SSH(BaseClass):
     RECONNECT_COUNT = 1
     RECONNECT_WAITING = 0
 
-    def __init__(self, hostname: str, username: str, password: str=None, port: int=22) -> None:
+    def __init__(self, hostname: str, username: str=None, password: str=None, port: int=22) -> None:
         """
         :param str hostname: The server to connect to
         :param str username: The username to authenticate as (defaults to the current local username)
