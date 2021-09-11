@@ -1,6 +1,7 @@
 from enum import Enum, auto
 from time import sleep
 import traceback
+from typing import Tuple
 
 import paramiko
 from scp import SCPClient
@@ -16,11 +17,21 @@ class RemoteType(Enum):
     SFTP = auto()
 
 class SSH(BaseClass):
+    """
+    Warpper of 'paramiko' and 'SCPClient', implement auto-retry feature to guarantee the 
+        completeness of the operations while connection error occurs.
+    """
     RECONNECT_TIME_OUT = 20
     RECONNECT_COUNT = 1
     RECONNECT_WAITING = 0
 
     def __init__(self, hostname: str, username: str, password: str=None, port: int=22) -> None:
+        """
+        :param str hostname: The server to connect to
+        :param str username: The username to authenticate as (defaults to the current local username)
+        :param int port: The server port to connect to
+        :param str password: Used for password authentication; is also used for private key decryption if ``passphrase`` is not given.
+        """
         self.hostname = hostname
         self.username = username
         self.password = password
@@ -31,26 +42,28 @@ class SSH(BaseClass):
         self.scpClient = None
         
         # Logger
-        # self.logger = UtilLogger(module='Runner', submodule='SSH', verbose=UtilLogger.INFO)
         self.logger = self._set_UtilLogger(module='Runner', submodule='SSH', verbose=UtilLogger.INFO)
 
     def __info(self, *args, **kwargs) -> None:
-        # print(f"[Runner.SSH] Info: {info(*args, **kwargs)}")
-        # self.logger.info(*args, **kwargs)
+        """
+        Log info via `UtilLogger.info`
+        :param *args args: The positional arguments of method `UtilLogger.info`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.info`
+        """
         super()._info(*args, **kwargs)
 
     def __warning(self, *args, **kwargs) -> None:
-        # print(f"[Runner.SSH] Warning: {warning(*args, **kwargs)}")
-        # self.logger.warning(*args, **kwargs)
+        """
+        Log warning via `UtilLogger.warning`
+        :param *args args: The positional arguments of method `UtilLogger.warning`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.warning`
+        """
         super()._warning(*args, **kwargs)
         
     def __error(self, *args, **kwargs) -> None:
-        # print(f"[Runner.SSH] Error: {error(*args, **kwargs)}")
-        # self.logger.error(*args, **kwargs)
         super()._error(*args, **kwargs)
 
     def __type_check(self, *args, **kwargs) -> None:
-        # type_check(*args, **kwargs)
         super()._type_check(*args, **kwargs)
     
     def __retrying_execution(self, remote_type: RemoteType, fn_name: str, name: str, retry_count: int, *args, **kargs):
@@ -93,7 +106,14 @@ class SSH(BaseClass):
                 self.__error(f"FAILED - {name}")
             return res
 
-    def connect(self, timeout: int=20, retry_count: int=3):
+    def connect(self, timeout: int=20, retry_count: int=3) -> None:
+        """
+        Establish the connection to host.
+
+        :param float timeout: An optional timeout (in seconds) for the TCP connect
+        :param int retry_count: How many time of reconnection and redoing the command 
+            while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+        """
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
 
         self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='connect', name=f"SSH connect to '{self.hostname}'", retry_count=retry_count, 
@@ -101,63 +121,126 @@ class SSH(BaseClass):
         # self.scpClient = SCPClient(self.client.get_transport(), progress=progress)
         self.scpClient = SCPClient(self.client.get_transport(), progress4=progress4)
 
-    def reconnect(self):
+    def reconnect(self) -> None:
+        """
+        Close the old SSH connection and establish a new one.
+        """
         self.__warning(f"Reconnecting... Waiting for {self.RECONNECT_WAITING}s")
         self.close()
         sleep(self.RECONNECT_WAITING)
         self.connect(timeout=self.RECONNECT_TIME_OUT, retry_count=self.RECONNECT_COUNT)
 
-    def close(self):
+    def close(self) -> None:
+        """
+        Close the connection.
+        """
         self.client.close()
 
-    def exec_command(self, command: str, is_show_result: bool=True, retry_count: int=3):
+    def exec_command(self, command: str, bufsize: int=-1, timeout: int=None, get_pty: bool=False, environment: dict=None, 
+                     is_show_result: bool=True, retry_count: int=3, cmd_retry_count: int=2) -> Tuple:
+        """
+        Execute the command on the remote host.
+
+        :param str command: The command would be executed on the remote host
+        :param int bufsize: interpreted the same way as by the built-in ``file()`` function in Python
+        :param int timeout: Set command's channel timeout. See `.Channel.settimeout`
+        :param bool get_pty: Request a pseudo-terminal from the server (default ``False``). See `.Channel.get_pty`
+        :param dict environment: A dict of shell environment variables, to be merged into 
+            the default environment that the remote command executes within.
+        :param str is_show_result: An indicater decide whether to print the result of the command or not.
+        :param int retry_count: How many time of reconnection and redoing the command 
+            while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+        :param int cmd_retry_count: How many time of redoing command while an error occurs 
+            during execute the command on the remote machine, excluding the connection error.
+        :return: A tupel contains the standard input/output/error stream after executing the command.
+        :rtype: list, list, list
+        """
         self.__type_check(obj=is_show_result, obj_type=bool, obj_name='is_show_result', is_allow_none=False)
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
 
-        stdin, stdout, stderr = self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='exec_command', name=f"SSH execute command '{command}'", retry_count=retry_count, command=command)
+        cmd_retry_counter = 0
+        while cmd_retry_counter < cmd_retry_count:
+            stdin, stdout, stderr = self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='exec_command', name=f"SSH execute command '{command}'", retry_count=retry_count, 
+                                                              command=command, bufsize=bufsize, timeout=timeout, get_pty=get_pty, environment=environment)
 
-        if is_show_result:
-            output = ""
-            for line in stdout:
-                output = output + line
-            if output != "":
-                print(output)
+            if is_show_result:
+                output = ""
+                for line in stdout:
+                    output = output + line
+                if output != "":
+                    print(output)
 
-            output = ""
-            for line in stderr:
-                output = output + line
-            if output != "":
-                self.__error(f"An error occured while executing SSH remote command.")
-                print(output)
+                output = ""
+                for line in stderr:
+                    output = output + line
+                if output != "":
+                    self.__error(f"An error occured while executing SSH remote command.")
+                    print(output)
+                    cmd_retry_counter += 1
+                else:
+                    break
 
         return stdin, stdout, stderr
 
-    def put(self, files: str, remote_path: str, recursive: bool=False, preserve_times: bool=False, retry_count: int=3):
+    def put(self, files: str, remote_path: str='.', recursive: bool=False, preserve_times: bool=False, retry_count: int=3) -> None:
+        """
+        Transfer files and directories to remote host.
+
+        :param str files: A single path, or a list of paths to be transferred. `recursive` must be True to transfer directories.
+        :param str remote_path: path in which to receive the files on the remote host. defaults to '.'
+        :param bool recursive: Transfer files and directories recursively
+        :param bool preserve_times: Preserve mtime and atime of transferred files and directories.
+        :param int retry_count: How many time of reconnection and redoing the command 
+            while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+        :raises BaseException: if the connection hasn't been established yet
+        """
         if self.scpClient is None:
             raise BaseException(f"Please establish a SSH connection at first.")
         
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
 
-        with self.scpClient as scp:
-            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='put', name=f"SCP put files from '{files}' to '{remote_path}'", retry_count=retry_count, files=files, 
-                                      remote_path=remote_path, recursive=recursive, preserve_times=preserve_times)
+        self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='put', name=f"SCP put files from '{files}' to '{remote_path}'", retry_count=retry_count, files=files, 
+                                  remote_path=remote_path, recursive=recursive, preserve_times=preserve_times)
 
     def putfo(self, fl, remote_path: str, mode: str='0644', size: int=None, retry_count: int=3):
+        """
+        Transfer file-like object to remote host.
+
+        :param file-like object fl: opened file or file-like object to copy
+        :param str remote_path: full destination path
+        :param str mode: permissions (posix-style) for the uploaded file
+        :param int size: size of the file in bytes. If ``None``, the size will be computed using `seek()` and `tell()`.
+        :param int retry_count: How many time of reconnection and redoing the command 
+            while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+        :raises BaseException: if the connection hasn't been established yet
+        """
         if self.scpClient is None:
             raise BaseException(f"Please establish a SSH connection at first.")
 
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
 
-        with self.scpClient as scp:
-            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='putfo', name=f"SCP put bytes to '{remote_path}'", retry_count=retry_count, fl=fl, 
-                                      remote_path=remote_path, mode=mode, size=size)
+        self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='putfo', name=f"SCP put bytes to '{remote_path}'", retry_count=retry_count, fl=fl, 
+                                  remote_path=remote_path, mode=mode, size=size)
 
     def get(self, remote_path: str, local_path: str='', recursive: bool=False, preserve_times: bool=False, retry_count: int=3):
+        """
+        Transfer files and directories from remote host to localhost.
+
+        :param str remote_path: path to retrieve from remote host. since this is
+            evaluated by scp on the remote host, shell wildcards and
+            environment variables may be used.
+        :param str local_path: path in which to receive files locally
+        :param bool recursive: transfer files and directories recursively
+        :param bool preserve_times: preserve mtime and atime of transferred files
+            and directories.
+        :param int retry_count: How many time of reconnection and redoing the command 
+            while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+        :raises BaseException: if the connection hasn't been established yet
+        """
         if self.scpClient is None:
             raise BaseException(f"Please establish a SSH connection at first.")
         
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
 
-        with self.scpClient as scp:
-            self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='get', name=f"SCP get files from '{remote_path}' to '{local_path}'", retry_count=retry_count, remote_path=remote_path, 
-                                      local_path=local_path, recursive=recursive, preserve_times=preserve_times)
+        self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='get', name=f"SCP get files from '{remote_path}' to '{local_path}'", retry_count=retry_count, remote_path=remote_path, 
+                                  local_path=local_path, recursive=recursive, preserve_times=preserve_times)

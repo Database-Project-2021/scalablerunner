@@ -54,6 +54,16 @@ class TestSSH(unittest.TestCase):
             self.client.reconnect()
         self.client.close()
 
+    def test_exec_command(self):
+        self.client.connect(timeout=20, retry_count=3)
+        for i in range(self.TEST_LOOP_COUNT):
+            self.client.exec_command(command='ls -la; mkdir new_dir_test; rm -rf new_dir_test', 
+                                     bufsize=-1, timeout=20, get_pty=False, environment=None, 
+                                     retry_count=3, cmd_retry_count=2)
+        self.client.exec_command(command='rm new_dir_test', 
+                                 timeout=20, retry_count=3, cmd_retry_count=2)
+        self.client.close()
+
     def test_put(self):
         self.client.connect(timeout=20, retry_count=3)
         for i in range(self.TEST_LOOP_COUNT):
