@@ -3,6 +3,7 @@ import io
 import os
 import traceback
 from typing import Tuple
+import paramiko
 
 import toml
 
@@ -94,6 +95,15 @@ class DBRunner(BaseClass):
         return io.StringIO(toml.dumps(toml_dict))
 
     def __ssh_exec_command(self, command: str, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> Tuple:
+        """
+        Execute command on remote host
+
+        :param str command: The command would be executed on the remote host
+        :param str going_msg: The ongoing message
+        :param str finished_msg: The finished message
+        :param str error_msg: The error message
+        :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
+        """
         res = None
         try:
             self.__info(going_msg)
@@ -101,6 +111,7 @@ class DBRunner(BaseClass):
             self.__info(finished_msg)
             return res
         except:
+            traceback.print_exc()
             self.__error(error_msg)
             return res
 
@@ -110,6 +121,7 @@ class DBRunner(BaseClass):
             self.host.put(files=files, remote_path=remote_path, recursive=recursive, retry_count=self.RETRY_COUNT)
             self.__info(finished_msg)
         except:
+            traceback.print_exc()
             self.__error(error_msg)
 
     def __scp_putfo(self, fl: str, remote_path: str, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
@@ -118,6 +130,7 @@ class DBRunner(BaseClass):
             self.host.putfo(fl=fl, remote_path=remote_path, retry_count=self.RETRY_COUNT)
             self.__info(finished_msg)
         except:
+            traceback.print_exc()
             self.__error(error_msg)
     
     def __scp_get(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
@@ -126,26 +139,30 @@ class DBRunner(BaseClass):
             self.host.get(remote_path=remote_path, local_path=local_path, recursive=recursive, retry_count=self.RETRY_COUNT)
             self.__info(finished_msg)
         except:
+            traceback.print_exc()
             self.__error(error_msg)
 
-    def connect(self, hostname: str, username: str=None, password: str=None) -> None:
+    def connect(self, hostname: str, username: str=None, password: str=None, port: int=22) -> None:
         """
         Connect to the host that ``Auto-Bencher`` locates
 
         :param str hostname: The host IP/URL
         :param str username: The username logins to
         :param str password: The password logins to
+        :param int port: The SSH port to establish tunnel
         """
         self.hostname = str(hostname)
         self.username = str(username)
         self.password = str(password)
+        self.port = int(port)
 
-        self.host = SSH(hostname=self.hostname, username=self.username, password=self.password)
+        self.host = SSH(hostname=self.hostname, username=self.username, password=self.password, port=self.port)
         try:
             self.__info(f"Connecting to remote host")
             self.host.connect(retry_count=self.RETRY_COUNT)
             self.__info(f"Connected to remote host")
         except:
+            traceback.print_exc()
             self.__error(f"Failed to connect remote host")
         
     def close(self) -> None:
@@ -157,6 +174,7 @@ class DBRunner(BaseClass):
             self.host.close()
             self.__info(f"Closed to remote host")
         except:
+            traceback.print_exc()
             self.__error(f"Failed to close remote host")
 
     def config_bencher(self, sequencer: str=None, servers: list=None, clients: list=None, 
@@ -250,6 +268,10 @@ class DBRunner(BaseClass):
         self.is_config_cluster = True
 
     def upload_bencher_config(self):
+        """
+        Upload the ``self.bencher_config`` under the Auto-Bencher directory as ``bencher.toml`` on the host.
+        The ``bencher.toml`` would be used by Auto-Bencher as the configuration of itself.
+        """
         # Upload bencher.toml
         fl = self.__dump_toml(self.bencher_config)
 
@@ -259,6 +281,10 @@ class DBRunner(BaseClass):
                          error_msg=f"Failed to upload config 'bencher.toml'")
 
     def upload_load_config(self):
+        """
+        Upload the ``self.load_config`` under the Auto-Bencher directory as ``load.toml`` on the host.
+        The ``load.toml`` would be used by Auto-Bencher as the configuration of the load-test-bed.
+        """
         # Upload load.toml
         fl = self.__dump_toml(self.load_config)
         self.__scp_putfo(fl=fl, remote_path=self.DBRUNNER_LOAD_CONFIG_PATH,
@@ -267,6 +293,10 @@ class DBRunner(BaseClass):
                          error_msg=f"Failed to upload config 'load.toml'")
 
     def upload_bench_config(self):
+        """
+        Upload the ``self.bench_config`` under the Auto-Bencher directory as ``bench.toml`` on the host. 
+        The ``bench.toml`` would be used by Auto-Bencher as the configuration of the benchmark.
+        """
         # Upload bench.toml
         fl = self.__dump_toml(self.bench_config)
         self.__scp_putfo(fl=fl, remote_path=self.DBRUNNER_BENCH_CONFIG_PATH, 
@@ -277,8 +307,9 @@ class DBRunner(BaseClass):
     def init(self) -> Tuple:
         """
         Initialize ElaSQL and Auto-Bencher according to the settings that is set up with the method ``DBRunner.config_bencher``
+
         :return: A tupel contains the standard input/output/error stream after executing the command.
-        :rtype: list, list, list
+        :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
         if not self.is_config_bencher:
             raise BaseException(f"Please call method config_bencher() to config bencher.toml at first.")
@@ -292,12 +323,12 @@ class DBRunner(BaseClass):
         self.upload_bencher_config()
 
         # Init Auto-bencher
-        stdin, stdout, stderr = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} init', 
+        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} init', 
                                                         going_msg=f"Initializing database...", 
                                                         finished_msg=f"Initialized database", 
                                                         error_msg=f"Failed to initialize database")
         
-        return stdin, stdout, stderr
+        return stdin, stdout, stderr, is_successed
 
     def upload_jars(self, server_jar: str, client_jar: str):
         if not self.is_config_cluster:
@@ -309,7 +340,7 @@ class DBRunner(BaseClass):
             self.__scp_put(files=client_jar, remote_path=self.jar_dir)
             self.__info(f"Uploaded JARs...")
         except:
-            # traceback.print_exc()
+            traceback.print_exc()
             self.__error(f"Failed to upload JARs")
 
     def __update_cluster_config(self, config: dict):
@@ -324,9 +355,14 @@ class DBRunner(BaseClass):
                               max_client_per_machine=int(config['auto_bencher']['max_client_per_machine']))
         return config
 
-    def load(self, alts: dict=None, base_config: str=None):
+    def load(self, alts: dict=None, base_config: str=None, is_kill_java: bool=True) -> Tuple:
         """
         Load test bed
+
+        :param dict alts: The modification would be applied to ``base_config``
+        :param str base_config: The path of the load-config for Auto-Bencher and it would be modified by ``alts``
+        :return: A tupel contains the standard input/output/error stream after executing the command.
+        :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
         if not self.is_config_bencher:
             raise BaseException(f"Please call method config_bencher() to config bencher.toml at first.")
@@ -345,11 +381,15 @@ class DBRunner(BaseClass):
         self.upload_load_config()
 
         # Run load test bed
-        stdin, stdout, stderr = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} load -d {self.DB_NAME} -p {self.LOAD_CONFIG}', 
+        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} load -d {self.DB_NAME} -p {self.LOAD_CONFIG}', 
                                                         going_msg=f"Loading test bed...", 
                                                         finished_msg=f"Loaded test bed", 
                                                         error_msg=f"Failed to load test bed")
-        return stdin, stdout, stderr
+        # Kill JAVA processes
+        if is_kill_java:
+            self.kill_java()
+
+        return stdin, stdout, stderr, is_successed
 
     def collect_results(self, name: str, cpu: str='transaction-cpu-time-server-', 
                         latency: str='transaction-latency-server-', 
@@ -389,9 +429,16 @@ class DBRunner(BaseClass):
                                     finished_msg=f"Deleted reports '{reports_dir}' on host", 
                                     error_msg=f"Failed to delete reports '{reports_dir}' on host")
 
-    def bench(self, reports_path: str, alts: dict=None, base_config: str=None, is_delete_reports: bool=True):
+    def bench(self, reports_path: str, alts: dict=None, base_config: str=None, is_pull_reports: bool=True, is_delete_reports: bool=True, is_kill_java: bool=True) -> Tuple:
         """
         Run Benchmark
+
+        :param str reports_path: 
+        :param dict alts: The modification would be applied to ``base_config``
+        :param str base_config: The path of the load-config for Auto-Bencher and it would be modified by ``alts``
+        :param bool is_delete_reports:
+        :return: A tupel contains the standard input/output/error stream after executing the command. 
+        :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
         if not self.is_config_bencher:
             raise BaseException(f"Please call method config_bencher() to config bencher.toml at first.")
@@ -410,24 +457,42 @@ class DBRunner(BaseClass):
         self.upload_bench_config()
 
         # Run benchmark
-        stdin, stdout, stderr = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} benchmark -d {self.DB_NAME} -p {self.BENCH_CONFIG}', 
+        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} benchmark -d {self.DB_NAME} -p {self.BENCH_CONFIG}', 
                                                         going_msg=f"Benchmarking...", 
                                                         finished_msg=f"Benchmarked", 
                                                         error_msg=f"Failed to benchmark")
 
         # Collect reports
-        self.collect_results(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
-        self.pull_reports_to_local(name=self.REPORTS_ON_HOST_DIR, path=reports_path, is_delete_reports=is_delete_reports)
+        if is_pull_reports:
+            self.collect_results(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
+            self.pull_reports_to_local(name=self.REPORTS_ON_HOST_DIR, path=reports_path, is_delete_reports=is_delete_reports)
+            
+        # Kill JAVA processes
+        if is_kill_java:
+            self.kill_java()
 
-        return stdin, stdout, stderr
+        return stdin, stdout, stderr, is_successed
 
-    def execute(self, command: str):
-        stdin, stdout, stderr = self.__ssh_exec_command(f"cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} exec --command {command}", 
+    def execute(self, command: str) -> Tuple:
+        """
+        Execute the command on the sequencers, servers and clients
+
+        :param str command: The command would be executed on all sequencers, servers, and clients
+        :return: A tupel contains the standard input/output/error stream after executing the command.
+        :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
+        """
+        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f"cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} exec --command '{command}'", 
                                                         going_msg=f"Executing command {command}...", 
                                                         finished_msg=f"Executed command {command}", 
                                                         error_msg=f"Failed to execute command {command}")
-        return stdin, stdout, stderr
+        return stdin, stdout, stderr, is_successed
 
-    def kill_java(self):
-        stdin, stdout, stderr = self.execute(command="pkill -f java")
-        return stdin, stdout, stderr
+    def kill_java(self) -> Tuple:
+        """
+        Kill the Java processes on the sequencers, servers and clients
+
+        :return: A tupel contains the standard input/output/error stream after executing the command.
+        :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
+        """
+        stdin, stdout, stderr, is_successed = self.execute(command="pkill -f java")
+        return stdin, stdout, stderr, is_successed
