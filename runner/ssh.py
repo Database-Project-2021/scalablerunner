@@ -26,7 +26,11 @@ class SSH(BaseClass):
     RECONNECT_COUNT = 1
     RECONNECT_WAITING = 0
 
-    def __init__(self, hostname: str, username: str=None, password: str=None, port: int=22, default_is_raise_err: bool=False) -> None:
+    # Default functionalities
+    DEFAULT_IS_RAISE_ERR = False
+    DEFAULT_RETRY_COUNT = 3
+
+    def __init__(self, hostname: str, username: str=None, password: str=None, port: int=22) -> None:
         """
         Warpper of 'paramiko' and 'SCPClient', implement auto-retry feature to guarantee the 
             completeness of the operations while connection error occurs.
@@ -36,13 +40,13 @@ class SSH(BaseClass):
         :param int port: The server port to connect to
         :param str password: Used for password authentication; is also used for private key decryption if ``passphrase`` is not given.
         """
-        self.__type_check(obj=default_is_raise_err, obj_type=bool, obj_name='default_is_raise_err', is_allow_none=False)
 
         self.hostname = hostname
         self.username = username
         self.password = password
         self.port = port
-        self.is_raise_err = default_is_raise_err
+        self.default_is_raise_err = self.DEFAULT_IS_RAISE_ERR
+        self.default_retry_count = self.DEFAULT_RETRY_COUNT
 
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -105,10 +109,10 @@ class SSH(BaseClass):
         self.__type_check(obj=remote_type, obj_type=RemoteType, obj_name='remote_type', is_allow_none=False)
         self.__type_check(obj=fn_name, obj_type=str, obj_name='fn_name', is_allow_none=False)
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
-        self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=False)
+        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
+        self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
         
-        try_counter = retry_count + 1
+        try_counter = self.__process_retry_count(retry_count=retry_count) + 1
         is_successed = False
         res = None
         try:
@@ -142,88 +146,116 @@ class SSH(BaseClass):
                 self.__info(f"SUCCESSED - {name}")
             else:
                 self.__error(f"FAILED - {name}")
-                if is_raise_err:
+                if self.__process_is_raise_err(is_raise_err=is_raise_err):
                     raise BaseException(f"Fail to execute command, even reconnect to the host")
             return res
 
     def __process_is_raise_err(self, is_raise_err: bool) -> bool:
         """
-        Determine to use the new value passed by the user or the default value.
+        Determine to use the new value 'is_raise_err' passed by the user or the default value.
         If the argument is ``None``, use default value instead.
         """
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         if is_raise_err is None:
-            return self.is_raise_err
+            return self.default_is_raise_err
         else:
             return is_raise_err
 
-    def set_default_is_raise_err(self, is_raise_err: bool) -> None:
+    def __process_retry_count(self, retry_count: int) -> int:
+        """
+        Determine to use the new value of 'retry_count' passed by the user or the default value.
+        If the argument is ``None``, use default value instead.
+        """
+        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
+
+        if retry_count is None:
+            return self.default_retry_count
+        else:
+            return retry_count
+
+    def set_default_is_raise_err(self, default_is_raise_err: bool) -> 'SSH':
         """
         Set up default value of ``is_raise_err`` of this instance.
 
-        :param bool is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
+        :param bool default_is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
             but the modification only affect to this function.
         """
-        self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=False)
+        self.__type_check(obj=default_is_raise_err, obj_type=bool, obj_name='default_is_raise_err', is_allow_none=False)
 
-        self.is_raise_err = is_raise_err
+        self.default_is_raise_err = default_is_raise_err
+        return self
 
-    def connect(self, timeout: int=20, retry_count: int=3, is_raise_err: bool=None) -> None:
+    def set_default_retry_count(self, default_retry_count: bool) -> 'SSH':
+        """
+        Set up default value of ``retry_count`` of this instance.
+
+        :param int default_retry_count: Determine the default retry-count of the class SSH.
+        """
+        self.__type_check(obj=default_retry_count, obj_type=int, obj_name='default_retry_count', is_allow_none=False)
+
+        self.default_retry_count = default_retry_count
+        return self
+
+    def connect(self, timeout: int=20, retry_count: int=None, is_raise_err: bool=None) -> None:
         """
         Establish the connection to host.
 
         :param float timeout: An optional timeout (in seconds) for the TCP connect
         :param int retry_count: How many time of reconnection and redoing the command 
             while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+            If value is ``None``, use default retry-count.
         :param bool is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
             but the modification only affect to this function.
         """
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
+        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
-        self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='connect', name=f"SSH connect to '{self.hostname}'", retry_count=retry_count, 
-                                  is_raise_err=self.__process_is_raise_err(is_raise_err=is_raise_err), 
+        self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='connect', name=f"SSH connect to '{self.hostname}'", 
+                                  retry_count=retry_count, is_raise_err=is_raise_err, 
                                   hostname=self.hostname, port=self.port, username=self.username, password=self.password, timeout=timeout)
         # self.scpClient = SCPClient(self.client.get_transport(), progress=progress)
         self.scpClient = SCPClient(self.client.get_transport(), progress4=progress4)
 
-    def reconnect(self, timeout: int=20, retry_count: int=3, is_raise_err: bool=None) -> None:
+    def reconnect(self, timeout: int=20, retry_count: int=None, is_raise_err: bool=None) -> None:
         """
         Close the old SSH connection and establish a new one.
 
         :param float timeout: An optional timeout (in seconds) for the TCP connect
         :param int retry_count: How many time of reconnection and redoing the command 
             while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+            If value is ``None``, use default retry-count.
         :param bool is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
             but the modification only affect to this function.
         """
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
+        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         self.__warning(f"Reconnecting... Waiting for {self.RECONNECT_WAITING}s")
         self.close()
         sleep(self.RECONNECT_WAITING)
-        self.connect(timeout=timeout, retry_count=retry_count, is_raise_err=self.__process_is_raise_err(is_raise_err=is_raise_err))
+        self.connect(timeout=timeout, retry_count=retry_count, is_raise_err=is_raise_err)
 
-    def close(self, retry_count: int=3, is_raise_err: bool=None) -> None:
+    def close(self, retry_count: int=None, is_raise_err: bool=None) -> None:
         """
         Close the connection.
 
         :param int retry_count: How many time of reconnection and redoing the command 
             while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+            If value is ``None``, use default retry-count.
         :param bool is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs.
         """
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
+        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
-        self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='close', name=f"SSH closes the connecttion to '{self.hostname}'", retry_count=retry_count, is_raise_err=self.__process_is_raise_err(is_raise_err=is_raise_err))
+        self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='close', name=f"SSH closes the connecttion to '{self.hostname}'", 
+                                  retry_count=retry_count, is_raise_err=is_raise_err)
 
     def exec_command(self, command: str, bufsize: int=-1, timeout: int=None, get_pty: bool=False, environment: dict=None, 
-                     is_show_result: bool=True, retry_count: int=3, cmd_retry_count: int=2, is_raise_err: int=None) -> Tuple[paramiko.channel.ChannelStdinFile, paramiko.channel.ChannelFile, paramiko.channel.ChannelStderrFile]:
+                     is_show_result: bool=True, retry_count: int=None, cmd_retry_count: int=2, is_raise_err: int=None) -> Tuple[paramiko.channel.ChannelStdinFile, paramiko.channel.ChannelFile, paramiko.channel.ChannelStderrFile]:
         """
         Execute the command on the remote host.
 
@@ -236,6 +268,7 @@ class SSH(BaseClass):
         :param str is_show_result: An indicater decide whether to print the result of the command or not.
         :param int retry_count: How many time of reconnection and redoing the command 
             while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+            If value is ``None``, use default retry-count.
         :param int cmd_retry_count: How many time of redoing command while an error occurs 
             during execute the command on the remote machine, excluding the connection error.
         :param bool is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
@@ -245,7 +278,7 @@ class SSH(BaseClass):
         :rtype: list, list, list
         """
         self.__type_check(obj=is_show_result, obj_type=bool, obj_name='is_show_result', is_allow_none=False)
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
+        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
         self.__type_check(obj=cmd_retry_count, obj_type=int, obj_name='cmd_retry_count', is_allow_none=False)
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
@@ -280,7 +313,7 @@ class SSH(BaseClass):
 
         return stdin, stdout, stderr, is_successsed
 
-    def put(self, files: str, remote_path: str='.', recursive: bool=False, preserve_times: bool=False, retry_count: int=3, is_raise_err: int=None) -> None:
+    def put(self, files: str, remote_path: str='.', recursive: bool=False, preserve_times: bool=False, retry_count: int=None, is_raise_err: int=None) -> None:
         """
         Transfer files and directories to remote host.
 
@@ -290,6 +323,7 @@ class SSH(BaseClass):
         :param bool preserve_times: Preserve mtime and atime of transferred files and directories.
         :param int retry_count: How many time of reconnection and redoing the command 
             while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+            If value is ``None``, use default retry-count.
         :param bool is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
             but the modification only affect to this function.
@@ -298,14 +332,14 @@ class SSH(BaseClass):
         if self.scpClient is None:
             raise BaseException(f"Please establish a SSH connection at first.")
         
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
+        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='put', name=f"SCP put files from '{files}' to '{remote_path}'", 
-                                  retry_count=retry_count, is_raise_err=self.__process_is_raise_err(is_raise_err=is_raise_err), 
+                                  retry_count=retry_count, is_raise_err=is_raise_err, 
                                   files=files, remote_path=remote_path, recursive=recursive, preserve_times=preserve_times)
 
-    def putfo(self, fl, remote_path: str, mode: str='0644', size: int=None, retry_count: int=3, is_raise_err: int=None):
+    def putfo(self, fl, remote_path: str, mode: str='0644', size: int=None, retry_count: int=None, is_raise_err: int=None):
         """
         Transfer file-like object to remote host.
 
@@ -315,6 +349,7 @@ class SSH(BaseClass):
         :param int size: size of the file in bytes. If ``None``, the size will be computed using `seek()` and `tell()`.
         :param int retry_count: How many time of reconnection and redoing the command 
             while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+            If value is ``None``, use default retry-count.
         :param bool is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
             but the modification only affect to this function.
@@ -323,14 +358,14 @@ class SSH(BaseClass):
         if self.scpClient is None:
             raise BaseException(f"Please establish a SSH connection at first.")
 
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
+        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='putfo', name=f"SCP put bytes to '{remote_path}'", 
-                                  retry_count=retry_count, is_raise_err=self.__process_is_raise_err(is_raise_err=is_raise_err), 
+                                  retry_count=retry_count, is_raise_err=is_raise_err, 
                                   fl=fl, remote_path=remote_path, mode=mode, size=size)
 
-    def get(self, remote_path: str, local_path: str='', recursive: bool=False, preserve_times: bool=False, retry_count: int=3, is_raise_err: int=None):
+    def get(self, remote_path: str, local_path: str='', recursive: bool=False, preserve_times: bool=False, retry_count: int=None, is_raise_err: int=None):
         """
         Transfer files and directories from remote host to localhost.
 
@@ -343,6 +378,7 @@ class SSH(BaseClass):
             and directories.
         :param int retry_count: How many time of reconnection and redoing the command 
             while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+            If value is ``None``, use default retry-count.
         :param bool is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
             but the modification only affect to this function.
@@ -351,9 +387,9 @@ class SSH(BaseClass):
         if self.scpClient is None:
             raise BaseException(f"Please establish a SSH connection at first.")
         
-        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=False)
+        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='get', name=f"SCP get files from '{remote_path}' to '{local_path}'", 
-                                  retry_count=retry_count, is_raise_err=self.__process_is_raise_err(is_raise_err=is_raise_err), 
+                                  retry_count=retry_count, is_raise_err=is_raise_err, 
                                   remote_path=remote_path, local_path=local_path, recursive=recursive, preserve_times=preserve_times)

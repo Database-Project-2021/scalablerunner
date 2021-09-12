@@ -12,7 +12,10 @@ from runner.ssh import SSH
 
 class DBRunner(BaseClass):
     # SSH
-    RETRY_COUNT = 3
+    SSH_DEFAULT_RETRY_COUNT = 3
+    SSH_DEFAULT_IS_RAISE_ERR = False
+    SSH_DEFAULT_CMD_RETRY_COUNT = 2
+
     # Auto-bencher
     AUTOBENCHER_NAME = 'auto-bencher'
     AUTOBENCHER_GITHUB = 'https://github.com/elasql/auto-bencher.git'
@@ -59,27 +62,23 @@ class DBRunner(BaseClass):
     
     def __init__(self) -> None:
         self.is_config_bencher = False
+        self.default_is_raise_err = self.SSH_DEFAULT_IS_RAISE_ERR
+        self.default_retry_count = self.SSH_DEFAULT_RETRY_COUNT
+        self.default_cmd_retry_count = self.SSH_DEFAULT_CMD_RETRY_COUNT
 
         # Logger
         self.logger = self._set_UtilLogger(module='Runner', submodule='DBRunner', verbose=UtilLogger.INFO)
 
     def __info(self, *args, **kwargs) -> None:
-        # if msg is not None:
-        #     print(f"[DB Runner] Info: {info(msg=msg)}")
         super()._info(*args, **kwargs)
 
     def __warning(self, *args, **kwargs) -> None:
-        # if msg is not None:
-        #     print(f"[DB Runner] Warning: {warning(msg=msg)}")
         super()._warning(*args, **kwargs)
         
     def __error(self, *args, **kwargs) -> None:
-        # if msg is not None:
-        #     print(f"[DB Runner] Error: {error(msg=msg)}")
         super()._error(*args, **kwargs)
 
     def __type_check(self, *args, **kwargs) -> None:
-        # type_check(*args, **kwargs)
         super()._type_check(*args, **kwargs)
     
     def __load_toml(self, toml_file: str) -> dict:
@@ -94,6 +93,36 @@ class DBRunner(BaseClass):
         """
         return io.StringIO(toml.dumps(toml_dict))
 
+    def __process_is_raise_err(self, is_raise_err: bool) -> bool:
+        """
+        Determine to use the new value passed by the user or the default value.
+        If the argument is ``None``, use default value instead.
+        """
+        self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
+
+        if is_raise_err is None:
+            return self.default_is_raise_err
+        else:
+            return is_raise_err
+
+    def __client_exec(self, fn_name: str, is_raise_err: bool=None, going_msg: str=None, finished_msg: str=None, error_msg: str=None, *args, **kwargs) -> Tuple:
+        """
+        Execute specific function given function name
+        """
+        self.__type_check(obj=fn_name, obj_type=str, obj_name='fn_name', is_allow_none=False)
+        res = None
+        try:
+            self.__info(going_msg)
+            res = getattr(self.host, fn_name)(*args, **kwargs)
+            self.__info(finished_msg)
+            return res
+        except:
+            self.__error(error_msg)
+            traceback.print_exc()
+            if self.__process_is_raise_err(is_raise_err=is_raise_err):
+                raise BaseException(f"{error_msg}")
+            return res
+
     def __ssh_exec_command(self, command: str, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> Tuple:
         """
         Execute command on remote host
@@ -104,43 +133,91 @@ class DBRunner(BaseClass):
         :param str error_msg: The error message
         :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
-        res = None
-        try:
-            self.__info(going_msg)
-            res = self.host.exec_command(command=command, retry_count=self.RETRY_COUNT)
-            self.__info(finished_msg)
-            return res
-        except:
-            traceback.print_exc()
-            self.__error(error_msg)
-            return res
+        # res = None
+        # try:
+        #     self.__info(going_msg)
+        #     res = self.host.exec_command(command=command, retry_count=self.RETRY_COUNT)
+        #     self.__info(finished_msg)
+        #     return res
+        # except:
+        #     self.__error(error_msg)
+        #     traceback.print_exc()
+        #     return res
+        
+        res = self.__client_exec(fn_name='exec_command', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg, 
+                                 command=command, cmd_retry_count=self.default_cmd_retry_count)
+        return res
 
     def __scp_put(self, files: str, remote_path: str, recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
-        try:
-            self.__info(going_msg)
-            self.host.put(files=files, remote_path=remote_path, recursive=recursive, retry_count=self.RETRY_COUNT)
-            self.__info(finished_msg)
-        except:
-            traceback.print_exc()
-            self.__error(error_msg)
+        # try:
+        #     self.__info(going_msg)
+        #     self.host.put(files=files, remote_path=remote_path, recursive=recursive, retry_count=self.RETRY_COUNT)
+        #     self.__info(finished_msg)
+        # except:
+        #     self.__error(error_msg)
+        #     traceback.print_exc()
+
+        self.__client_exec(fn_name='put', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
+                           files=files, remote_path=remote_path, recursive=recursive)
 
     def __scp_putfo(self, fl: str, remote_path: str, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
-        try:
-            self.__info(going_msg)
-            self.host.putfo(fl=fl, remote_path=remote_path, retry_count=self.RETRY_COUNT)
-            self.__info(finished_msg)
-        except:
-            traceback.print_exc()
-            self.__error(error_msg)
+        # try:
+        #     self.__info(going_msg)
+        #     self.host.putfo(fl=fl, remote_path=remote_path, retry_count=self.RETRY_COUNT)
+        #     self.__info(finished_msg)
+        # except:
+        #     self.__error(error_msg)
+        #     traceback.print_exc()
+
+        self.__client_exec(fn_name='putfo', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
+                           fl=fl, remote_path=remote_path)
     
     def __scp_get(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
-        try:
-            self.__info(going_msg)
-            self.host.get(remote_path=remote_path, local_path=local_path, recursive=recursive, retry_count=self.RETRY_COUNT)
-            self.__info(finished_msg)
-        except:
-            traceback.print_exc()
-            self.__error(error_msg)
+        # try:
+        #     self.__info(going_msg)
+        #     self.host.get(remote_path=remote_path, local_path=local_path, recursive=recursive, retry_count=self.RETRY_COUNT)
+        #     self.__info(finished_msg)
+        # except:
+        #     self.__error(error_msg)
+        #     traceback.print_exc()
+
+        self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
+                           remote_path=remote_path, local_path=local_path, recursive=recursive)
+
+    def set_default_is_raise_err(self, default_is_raise_err: bool) -> 'DBRunner':
+        """
+        Set up default value of ``default_is_raise_err`` of this instance.
+
+        :param bool default_is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
+            Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
+            but the modification only affect to this function.
+        """
+        self.__type_check(obj=default_is_raise_err, obj_type=bool, obj_name='default_is_raise_err', is_allow_none=False)
+
+        self.default_is_raise_err = default_is_raise_err
+        return self
+
+    def set_default_retry_count(self, default_retry_count: bool) -> 'DBRunner':
+        """
+        Set up default value of ``retry_count`` of each operation.
+
+        :param int default_retry_count: Determine the default retry-count of the class SSH.
+        """
+        self.__type_check(obj=default_retry_count, obj_type=int, obj_name='default_retry_count', is_allow_none=False)
+
+        self.default_retry_count = default_retry_count
+        return self
+
+    def set_default_cmd_retry_count(self, default_cmd_retry_count: int) -> 'DBRunner':
+        """
+        Set up default value of ``cmd_retry_count`` of SSH remote command execution.
+
+        :param int default_cmd_retry_count: Determine the default command-retry count of the each SSH remote command execution.
+        """
+        self.__type_check(obj=default_cmd_retry_count, obj_type=int, obj_name='default_cmd_retry_count', is_allow_none=False)
+
+        self.default_cmd_retry_count = default_cmd_retry_count
+        return self
 
     def connect(self, hostname: str, username: str=None, password: str=None, port: int=22) -> None:
         """
@@ -157,25 +234,31 @@ class DBRunner(BaseClass):
         self.port = int(port)
 
         self.host = SSH(hostname=self.hostname, username=self.username, password=self.password, port=self.port)
-        try:
-            self.__info(f"Connecting to remote host")
-            self.host.connect(retry_count=self.RETRY_COUNT)
-            self.__info(f"Connected to remote host")
-        except:
-            traceback.print_exc()
-            self.__error(f"Failed to connect remote host")
+        self.host.set_default_is_raise_err(default_is_raise_err=self.default_is_raise_err)
+        self.host.set_default_retry_count(default_retry_count=self.default_retry_count)
+        # try:
+        #     self.__info(f"Connecting to remote host")
+        #     self.host.connect(retry_count=self.RETRY_COUNT)
+        #     self.__info(f"Connected to remote host")
+        # except:
+        #     self.__error(f"Failed to connect remote host")
+        #     traceback.print_exc()
+        
+        self.__client_exec(fn_name='connect', going_msg=f"Connecting to remote host", finished_msg=f"Connected to remote host", error_msg=f"Failed to connect remote host")
         
     def close(self) -> None:
         """
         Close the connection to ``Auto-Bencher`` host.
         """
-        try:
-            self.__info(f"Closing the remote host")
-            self.host.close()
-            self.__info(f"Closed to remote host")
-        except:
-            traceback.print_exc()
-            self.__error(f"Failed to close remote host")
+        # try:
+        #     self.__info(f"Closing the remote host")
+        #     self.host.close(retry_count=self.RETRY_COUNT)
+        #     self.__info(f"Closed to remote host")
+        # except:
+        #     self.__error(f"Failed to close remote host")
+        #     traceback.print_exc()
+        
+        self.__client_exec(fn_name='close', going_msg=f"Closing the remote host", finished_msg=f"Closed to remote host", error_msg=f"Failed to close remote host")
 
     def config_bencher(self, sequencer: str=None, servers: list=None, clients: list=None, 
                        user_name: str=None, remote_work_dir: str=None, 
@@ -334,14 +417,19 @@ class DBRunner(BaseClass):
         if not self.is_config_cluster:
             raise BaseException(f"Please call method config_cluster() at first.")
 
-        try:
-            self.__info(f"Uploading JARs...")
-            self.__scp_put(files=server_jar, remote_path=self.jar_dir)
-            self.__scp_put(files=client_jar, remote_path=self.jar_dir)
-            self.__info(f"Uploaded JARs...")
-        except:
-            traceback.print_exc()
-            self.__error(f"Failed to upload JARs")
+        # try:
+        #     self.__info(f"Uploading JARs...")
+        #     self.__scp_put(files=server_jar, remote_path=self.jar_dir)
+        #     self.__scp_put(files=client_jar, remote_path=self.jar_dir)
+        #     self.__info(f"Uploaded JARs...")
+        # except:
+        #     self.__error(f"Failed to upload JARs")
+        #     traceback.print_exc()
+        
+        self.__scp_put(files=server_jar, remote_path=self.jar_dir, going_msg=f'Uploading server.jar', 
+                       finished_msg=f'Uploaded server.jar', error_msg=f'Failed to upload server.jar')
+        self.__scp_put(files=client_jar, remote_path=self.jar_dir, going_msg=f'Uploading client.jar', 
+                       finished_msg=f'Uploaded client.jar', error_msg=f'Failed to upload client.jar')
 
     def __update_cluster_config(self, config: dict):
         if not config.get('auto_bencher', None) is None:

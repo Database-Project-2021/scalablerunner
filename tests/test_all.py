@@ -54,14 +54,18 @@ class TestSSH(unittest.TestCase):
     TIME_OUT = 20
     RETRY_COUNT = 3
     CMD_RETRY_COUNT = 2
+
+    # Default values
     DEFAULT_IS_RAISE_ERR = True
+    DEFAULT_RETRY_COUNT = 3
 
     def __init__(self, methodName: str) -> None:
         super().__init__(methodName=methodName)
 
         # Get host infos
         self.HOSTNAME, self.USERNAME, self.PASSWORD, self.PORT = get_host_infos()
-        self.client = SSH(hostname=self.HOSTNAME, username=self.USERNAME, password=self.PASSWORD, port=self.PORT, default_is_raise_err=self.DEFAULT_IS_RAISE_ERR)
+        self.client = SSH(hostname=self.HOSTNAME, username=self.USERNAME, password=self.PASSWORD, port=self.PORT)
+        self.client.set_default_is_raise_err(default_is_raise_err=self.DEFAULT_IS_RAISE_ERR)
 
     def __info(self, *args, **kwargs) -> None:
         print(f"[Test SSH] Info: {info(*args, **kwargs)}")
@@ -76,6 +80,8 @@ class TestSSH(unittest.TestCase):
         type_check(*args, **kwargs)
 
     def setUp(self):
+        self.client.set_default_is_raise_err(default_is_raise_err=self.DEFAULT_IS_RAISE_ERR)
+        self.client.set_default_retry_count(default_retry_count=self.DEFAULT_RETRY_COUNT)
         self.client.connect(timeout=self.TIME_OUT, retry_count=self.RETRY_COUNT)
 
     def tearDown(self):
@@ -84,6 +90,25 @@ class TestSSH(unittest.TestCase):
     def test_connect(self):
         for i in range(self.TEST_LOOP_COUNT):
             self.client.reconnect()
+        
+    def test_set_default_is_raise_err(self):
+        is_passed = False
+        # Turn off is_raise_err, shouldn't raise error
+        self.client.set_default_is_raise_err(default_is_raise_err=False)
+        self.client.exec_command(command='rm new_dir_test', timeout=self.TIME_OUT, retry_count=self.RETRY_COUNT, cmd_retry_count=True)
+
+        # Turn on is_raise_err, should raise error
+        self.client.set_default_is_raise_err(default_is_raise_err=True)
+        try:
+            self.client.exec_command(command='rm new_dir_test', timeout=self.TIME_OUT, retry_count=self.RETRY_COUNT, cmd_retry_count=True)
+            is_passed = False
+        except:
+            is_passed = True
+
+        if not is_passed:
+            self.__error(f"Failed to pass test_set_default_is_raise_err()")
+            traceback.print_exc()
+            raise BaseException(f"Failed to pass test_set_default_is_raise_err()")
 
     def test_exec_command(self):
         for i in range(self.TEST_LOOP_COUNT):
@@ -110,15 +135,16 @@ class TestSSH(unittest.TestCase):
             is_passed = True
 
         if not is_passed:
-            self.__error(f"Failed test_exec_command()")
+            self.__error(f"Failed to pass test_exec_command()")
             traceback.print_exc()
-            raise BaseException(f"Failed test_exec_command()")
+            raise BaseException(f"Failed to pass test_exec_command()")
 
     def test_put(self):
         for i in range(self.TEST_LOOP_COUNT):
             self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3)
 
-        for i in range(self.TEST_LOOP_COUNT):
+        for i in range(self.TEST_LOOP_COUNT // 2):
+            self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
             self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
 
     def test_putfo(self):
@@ -127,14 +153,16 @@ class TestSSH(unittest.TestCase):
         for i in range(self.TEST_LOOP_COUNT):
             self.client.putfo(fl=test_file, remote_path='./test.txt', retry_count=3)
 
-        for i in range(self.TEST_LOOP_COUNT):
+        for i in range(self.TEST_LOOP_COUNT // 2):
+            self.client.putfo(fl=test_file, remote_path='./test.txt', retry_count=3, is_raise_err=False)
             self.client.putfo(fl=test_file, remote_path='./test.txt', retry_count=3, is_raise_err=True)
 
     def test_get(self):
         for i in range(self.TEST_LOOP_COUNT):
             self.client.get(local_path=get_temp_dir(), remote_path='./server.jar', recursive=False, preserve_times=False, retry_count=3)
 
-        for i in range(self.TEST_LOOP_COUNT):
+        for i in range(self.TEST_LOOP_COUNT // 2):
+            self.client.get(local_path=get_temp_dir(), remote_path='./server.jar', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
             self.client.get(local_path=get_temp_dir(), remote_path='./server.jar', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
 
 def test_run(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):
@@ -195,6 +223,10 @@ def config_db_runner(db_runner: DBRunner) -> DBRunner:
     return db_runner
 
 class TestDBRunner(unittest.TestCase):
+    # SSH default value
+    SSH_DEFAULT_RETRY_COUT = 3
+    SSH_DEFAULT_IS_RAISE_ERR = True
+
     def __info(self, *args, **kwargs) -> None:
         print(f"[Test DB Runner] Info: {info(*args, **kwargs)}")
 
@@ -226,6 +258,8 @@ class TestDBRunner(unittest.TestCase):
         dr.init()
 
     def setUp(self):
+        self.dr.set_default_is_raise_err(default_is_raise_err=self.SSH_DEFAULT_IS_RAISE_ERR)
+        self.dr.set_default_retry_count(default_retry_count=self.SSH_DEFAULT_RETRY_COUT)
         self.dr.connect(hostname=self.HOSTNAME, username=self.USERNAME, password=self.USERNAME)
         self.dr = config_db_runner(self.dr)
 
@@ -238,16 +272,16 @@ class TestDBRunner(unittest.TestCase):
                 self.dr.close()
             self.dr.connect(hostname=self.HOSTNAME, username=self.USERNAME, password=self.USERNAME)
         except:
-            traceback.print_exc()
             self.__error(f"Fail to pass test_connect")
+            traceback.print_exc()
 
     def test_upload_jars(self):
         try:
             for i in range(10):
                 self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
         except:
-            traceback.print_exc()
             self.__error(f"Fail to pass test_upload_jars")
+            traceback.print_exc()
 
     def test_load(self):
         try:
@@ -255,8 +289,8 @@ class TestDBRunner(unittest.TestCase):
             for i in range(3):
                 self.dr.load(is_kill_java=True)
         except:
-            traceback.print_exc()
             self.__error(f"Fail to pass test_load()")
+            traceback.print_exc()
 
     def test_bench(self):
         try:
@@ -266,8 +300,8 @@ class TestDBRunner(unittest.TestCase):
                 self.dr.bench(reports_path=get_temp_dir(), is_pull_reports=True, is_delete_reports=True, 
                               is_kill_java=True)
         except:
-            traceback.print_exc()
             self.__error(f"Fail to pass test_bench()")
+            traceback.print_exc()
 
 def suite():
     suite = unittest.TestSuite()
