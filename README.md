@@ -16,6 +16,45 @@ Install with pip.
 pip install git+https://github.com/Database-Project-2021/runner.git
 ```
 
+## Test
+
+Create a ``host_infos.toml`` file under the root diretory of this package like
+
+```
+- Runner
+    - runner
+    - README.md
+    - host_infos.toml
+```
+
+Then, fill the information of the host IP/URL, login username, login password and the SSH tunnel port. The ``unittest`` would be done on this machine.
+
+```toml
+# File name: host_infos.toml
+hostname = "140.114.85.15"
+username = "db-under"
+password = "db-under"
+port = "22"
+```
+
+Finally, run the ``unittest`` command. It would run all testcases.
+
+```bash
+python -m unittest tests.test_all
+```
+
+If you only want to test some specific module, ex: ``runner.SSH`` module, you can run like this.
+
+```bash
+python -m unittest tests.test_all.TestSSH
+```
+
+Or even only test on specific function, like ``runner.SSH.put``, you can run
+
+```bash
+python -m unittest tests.test_all.TestSSH.test_put
+```
+
 ## TaskRunner
 
 ### Example Code
