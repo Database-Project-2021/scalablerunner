@@ -2,6 +2,7 @@
 build/
 dist/
 temp/
+.vscode
 *.egg-info/
 *.egg
 *.py[cod]

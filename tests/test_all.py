@@ -222,6 +222,9 @@ def config_db_runner(db_runner: DBRunner) -> DBRunner:
     db_runner.config_cluster(server_count=4, jar_dir='latest')
     return db_runner
 
+def get_workspace_name():
+    return 'db_runner_workspace_test'
+
 class TestDBRunner(unittest.TestCase):
     # SSH default value
     SSH_DEFAULT_RETRY_COUT = 3
@@ -245,14 +248,14 @@ class TestDBRunner(unittest.TestCase):
         # Get host infos
         self.HOSTNAME, self.USERNAME, self.PASSWORD, self.PORT = get_host_infos()
 
-        self.dr = DBRunner()
+        self.dr = DBRunner(workspace=get_workspace_name())
     
     @classmethod
     def setUpClass(cls):
         # Get host infos
         HOSTNAME, USERNAME, PASSWORD, PORT = get_host_infos()
 
-        dr = DBRunner()
+        dr = DBRunner(workspace=get_workspace_name())
         dr.connect(hostname=HOSTNAME, username=USERNAME, password=PASSWORD, port=PORT)
         dr = config_db_runner(dr)
         dr.init()

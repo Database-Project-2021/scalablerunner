@@ -205,7 +205,7 @@ if __name__ == '__main__':
     SSH_DEFAULT_CMD_RETRY_COUT = 2
     SSH_DEFAULT_IS_RAISE_ERR = False
 
-    dr = DBRunner()
+    dr = DBRunner(workspace='db_runner_workspace_test')
     # Connect to the remote host, where Auto-Bencher loactes
     dr.connect(hostname=HOSTNAME, username=USERNAME, password=PASSWORD, port=PORT)
     dr = config_db_runner(dr)

@@ -4,6 +4,8 @@ import os
 import traceback
 from typing import Tuple
 import paramiko
+from datetime import datetime
+import random
 
 import toml
 
@@ -25,13 +27,14 @@ class DBRunner(BaseClass):
     SERVER_JAR_NAME = 'server.jar'
     CLIENT_JAR_NAME = 'client.jar'
 
-    WORKSPACE = 'db_runner_workspace'
-    DBRUNNER_AUTOBENHER_PATH = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
+    # Some folders under DBRunner
+    # WORKSPACE = f"db_runner_workspace"
+    # DBRUNNER_AUTOBENHER_PATH = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
     TEMP_DIR = 'temp'
     CPU_DIR = 'cpu'
     DISK_DIR = 'disk'
     LATENCY_DIR = 'latency'
-    DBRUNNER_TEMP_PATH = os.path.join(WORKSPACE, TEMP_DIR)
+    # DBRUNNER_TEMP_PATH = os.path.join(WORKSPACE, TEMP_DIR)
     
     # Name of database
     DB_NAME = 'hermes'
@@ -52,15 +55,15 @@ class DBRunner(BaseClass):
     BASE_BENCH_CONFIG_PATH = os.path.join(BASE_CONFIGS_DIR, BENCH_CONFIG)
 
     # Directory of configs on DB-Runner
-    DBRUNNER_CONFIG_DIR = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
-    DBRUNNER_BENCHER_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, BENCHER_CONFIG)
-    DBRUNNER_LOAD_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, LOAD_CONFIG)
-    DBRUNNER_BENCH_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, BENCH_CONFIG)
+    # DBRUNNER_CONFIG_DIR = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
+    # DBRUNNER_BENCHER_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, BENCHER_CONFIG)
+    # DBRUNNER_LOAD_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, LOAD_CONFIG)
+    # DBRUNNER_BENCH_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, BENCH_CONFIG)
 
     # Reports
     REPORTS_ON_HOST_DIR = 'reports'
     
-    def __init__(self) -> None:
+    def __init__(self, workspace: str=f"db_runner_workspace") -> None:
         self.is_config_bencher = False
         self.default_is_raise_err = self.SSH_DEFAULT_IS_RAISE_ERR
         self.default_retry_count = self.SSH_DEFAULT_RETRY_COUNT
@@ -68,6 +71,9 @@ class DBRunner(BaseClass):
 
         # Logger
         self.logger = self._set_UtilLogger(module='Runner', submodule='DBRunner', verbose=UtilLogger.INFO)
+
+        # Set name of workspace
+        self.__set_workspace(workspace=workspace)
 
     def __info(self, *args, **kwargs) -> None:
         super()._info(*args, **kwargs)
@@ -183,6 +189,17 @@ class DBRunner(BaseClass):
 
         self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
                            remote_path=remote_path, local_path=local_path, recursive=recursive)
+    
+    def __set_workspace(self, workspace: str) -> None:
+        self.WORKSPACE = workspace
+        self.DBRUNNER_AUTOBENHER_PATH = os.path.join(self.WORKSPACE, self.AUTOBENCHER_NAME)
+        self.DBRUNNER_TEMP_PATH = os.path.join(self.WORKSPACE, self.TEMP_DIR)
+
+        # Directory of configs on DB-Runner
+        self.DBRUNNER_CONFIG_DIR = os.path.join(self.WORKSPACE, self.AUTOBENCHER_NAME)
+        self.DBRUNNER_BENCHER_CONFIG_PATH = os.path.join(self.DBRUNNER_CONFIG_DIR, self.BENCHER_CONFIG)
+        self.DBRUNNER_LOAD_CONFIG_PATH = os.path.join(self.DBRUNNER_CONFIG_DIR, self.LOAD_CONFIG)
+        self.DBRUNNER_BENCH_CONFIG_PATH = os.path.join(self.DBRUNNER_CONFIG_DIR, self.BENCH_CONFIG)
 
     def set_default_is_raise_err(self, default_is_raise_err: bool) -> 'DBRunner':
         """

@@ -6,6 +6,8 @@ from typing import Callable, Tuple, Type, TypeVar, Union
 from pygments.console import colorize
 from multiprocessing import Process, Queue
 
+from runner.util import UtilLogger, BaseClass
+
 def info(msg: str) -> None:
     print(colorize('green', msg))
 
@@ -502,7 +504,7 @@ class GroupController():
     #         # Get next task
     #         next_param_idx, next_param = self.__next_param()
 
-class TaskRunner():
+class TaskRunner(BaseClass):
     """
     A config is like:
     section-1: # Sequential execution
@@ -528,7 +530,49 @@ class TaskRunner():
 
     """
     def __init__(self, config: dict) -> None:
+        self.__type_check(obj=config, obj_type=dict, obj_name='config', is_allow_none=False)
+
         self.config = config
+
+        # Logger
+        self.logger = self._set_UtilLogger(module='Runner', submodule='TaskRunner', verbose=UtilLogger.INFO)
+
+    def __info(self, *args, **kwargs) -> None:
+        """
+        Log info via `UtilLogger.info`
+
+        :param *args args: The positional arguments of method `UtilLogger.info`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.info`
+        """
+        super()._info(*args, **kwargs)
+
+    def __warning(self, *args, **kwargs) -> None:
+        """
+        Log warning via ``UtilLogger.warning``
+
+        :param *args args: The positional arguments of method `UtilLogger.warning`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.warning`
+        """
+        super()._warning(*args, **kwargs)
+        
+    def __error(self, *args, **kwargs) -> None:
+        """
+        Log error via ``UtilLogger.error``
+
+        :param *args args: The positional arguments of method `UtilLogger.error`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.error`
+        """
+        super()._error(*args, **kwargs)
+
+    def __type_check(self, *args, **kwargs) -> None:
+        """
+        Type check via function ``type_check`` in module ``Util``
+
+        :param *args args: The positional arguments of function ``type_check`` in module ``Util``
+        :param **kwargs kwargs: The keyword arguments of function ``type_check`` in module ``Util``
+        """
+        super()._type_check(*args, **kwargs)
+
     def __run_tasks(self, section_name: str, group_name: str, tasks: dict) -> Process:        
         def run_group_controller(section_name: str, group_name: str, tasks: dict):
             gc = GroupController(section_name=section_name, group_name=group_name, tasks=tasks)
@@ -560,11 +604,11 @@ class TaskRunner():
             group_proc.join()
         
     def run(self) -> None:
-        if not isinstance(self.config, dict):
-            raise TypeError(f"Config is not a dictionary")
+        # if not isinstance(self.config, dict):
+        #     raise TypeError(f"Config is not a dictionary")
         
-        if (self.config.keys() == None) or (len(self.config.keys()) == 0):
-            raise ValueError(f"The config shouldn't be empty")
+        # if (self.config.keys() == None) or (len(self.config.keys()) == 0):
+        #     raise ValueError(f"The config shouldn't be empty")
         
         for section_name in self.config.keys():
             print(colorize("green", f"Start Section: {section_name}"))
