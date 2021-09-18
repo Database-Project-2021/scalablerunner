@@ -13,6 +13,9 @@ from runner.util import BaseClass, UtilLogger, info, warning, error, type_check,
 from runner.ssh import SSH
 
 class DBRunner(BaseClass):
+    """
+    Run and configure the Auto-Bencher easily, fully with Python.
+    """
     # SSH
     SSH_DEFAULT_RETRY_COUNT = 3
     SSH_DEFAULT_IS_RAISE_ERR = False
@@ -63,7 +66,12 @@ class DBRunner(BaseClass):
     # Reports
     REPORTS_ON_HOST_DIR = 'reports'
     
-    def __init__(self, workspace: str=f"db_runner_workspace") -> None:
+    def __init__(self, workspace: str="db_runner_workspace") -> None:
+        """
+        :param str workspace: Customize the name of the workspace of the ``DBRunner``. If you need to run 
+            multiple task including benchmark, load test-bed etc concurrently, you need to ensure that 
+            ensure that each task executed concurrently has an individual workspace with different names.
+        """
         self.is_config_bencher = False
         self.default_is_raise_err = self.SSH_DEFAULT_IS_RAISE_ERR
         self.default_retry_count = self.SSH_DEFAULT_RETRY_COUNT
@@ -76,15 +84,39 @@ class DBRunner(BaseClass):
         self.__set_workspace(workspace=workspace)
 
     def __info(self, *args, **kwargs) -> None:
+        """
+        Log info via `UtilLogger.info`
+
+        :param *args args: The positional arguments of method `UtilLogger.info`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.info`
+        """
         super()._info(*args, **kwargs)
 
     def __warning(self, *args, **kwargs) -> None:
+        """
+        Log warning via ``UtilLogger.warning``
+
+        :param *args args: The positional arguments of method `UtilLogger.warning`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.warning`
+        """
         super()._warning(*args, **kwargs)
         
     def __error(self, *args, **kwargs) -> None:
+        """
+        Log error via ``UtilLogger.error``
+
+        :param *args args: The positional arguments of method `UtilLogger.error`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.error`
+        """
         super()._error(*args, **kwargs)
 
     def __type_check(self, *args, **kwargs) -> None:
+        """
+        Type check via function ``type_check`` in module ``Util``
+
+        :param *args args: The positional arguments of function ``type_check`` in module ``Util``
+        :param **kwargs kwargs: The keyword arguments of function ``type_check`` in module ``Util``
+        """
         super()._type_check(*args, **kwargs)
     
     def __load_toml(self, toml_file: str) -> dict:

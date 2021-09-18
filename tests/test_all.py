@@ -172,6 +172,9 @@ def test_run(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):
     print(f"Epoch: {epoch}, Decay: {decay}, Dataset Size: {dataset_size}, Machine: {machine}, GPU: {gpu}")
     sleep(5)
 
+def test_err(flag: str, gpu: int):
+    raise BaseException(f"Something wrong with the flag {flag} on gpu {gpu}")
+
 class TestTaskRunner(unittest.TestCase):
     def __init__(self, methodName: str) -> None:
         super().__init__(methodName=methodName)
@@ -199,7 +202,35 @@ class TestTaskRunner(unittest.TestCase):
                     'Async': {
                         '': []
                     }   
-                }    
+                },
+                'group-3':{ # 'group-2' can be seem as another resource group that handle different task from 'group-1' during 'section-1'
+                    'Call': 'ls',
+                    'Param': {
+                        '': ['-l', '-a', '-la']  
+                    }  
+                },
+                'group-error': {
+                    'Call': test_err,
+                    'Param': {
+                        'flag': ['-a', '-l', '-la']
+                    },
+                    'Async': {
+                        'gpu': [0, 1, 2]
+                    } 
+                },
+                'group-bug': {
+                    'Call': [],
+                    'Param': {
+                        'flag': ['-a', '-l', '-la']
+                    },
+                    'Async': {
+                        'gpu': [0, 1, 2]
+                    } 
+                }
+            },
+            'section-error': {
+                'group-1': [],
+                'group-2': []
             },
             'section-2': {
                 'group-1': {
@@ -207,7 +238,16 @@ class TestTaskRunner(unittest.TestCase):
                     'Param': {
                         '': ['-a']
                     }
-                }
+                },
+                'group-wrong-cmd': {
+                    'Call': 'lsa',
+                    'Param': {
+                        '': ['-a', '-l', '-la']
+                    },
+                    'Async': {
+                        '': [0, 1, 2]
+                    } 
+                },
             }
         }
         
