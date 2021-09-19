@@ -21,8 +21,8 @@ jobs:
       run: pip install -U setuptools wheel build toml paramiko scp
     - name: Build
       run: python -m build .
-    - name: Publish
-      uses: pypa/gh-action-pypi-publish@master
-      with:
-        password: ${{ secrets.pypi_password }}
-        skip_existing: true
+    # - name: Publish
+    #   uses: pypa/gh-action-pypi-publish@master
+    #   with:
+    #     password: ${{ secrets.pypi_password }}
+    #     skip_existing: true
