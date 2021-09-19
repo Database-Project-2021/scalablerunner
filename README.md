@@ -13,7 +13,7 @@ The scalable runner integrate several pacakages that can execute the Python func
 Install with pip.
 
 ```bash
-pip install git+https://github.com/Database-Project-2021/runner.git
+pip install git+https://github.com/Database-Project-2021/scalablerunner.git
 ```
 
 ## Test
