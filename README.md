@@ -31,10 +31,10 @@ Then, fill the information of the host IP/URL, login username, login password an
 
 ```toml
 # File name: host_infos.toml
-hostname = "140.114.85.15"
-username = "db-under"
-password = "db-under"
-port = "22"
+hostname = "your_host_ip"
+username = "your_username"
+password = "your_password"
+port = your_host_port
 ```
 
 Finally, run the ``unittest`` command. It would run all testcases.
