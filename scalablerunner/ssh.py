@@ -7,7 +7,7 @@ from typing import Tuple
 import paramiko
 from scp import SCPClient
 
-from runner.util import progress, progress4, UtilLogger, BaseClass
+from scalablerunner.util import progress, progress4, UtilLogger, BaseClass
 
 class RemoteType(Enum):
     """

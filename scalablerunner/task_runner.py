@@ -2,12 +2,11 @@ import traceback
 import os
 from time import sleep
 import types
-from typing import Callable, List, Tuple, Type, TypeVar, Union
+from typing import Callable, List, Tuple, TypeVar, Union
 import threading
-from pygments.console import colorize
 from multiprocessing import Process, Queue
 
-from runner.util import UtilLogger, BaseClass
+from scalablerunner.util import UtilLogger, BaseClass
 
 class ProcessTask(BaseClass):
     """

@@ -3,14 +3,11 @@ import io
 import os
 import traceback
 from typing import Tuple
-import paramiko
-from datetime import datetime
-import random
 
 import toml
 
-from runner.util import BaseClass, UtilLogger, info, warning, error, type_check, update
-from runner.ssh import SSH
+from scalablerunner.util import BaseClass, UtilLogger, update
+from scalablerunner.ssh import SSH
 
 class DBRunner(BaseClass):
     """
