@@ -9,18 +9,6 @@ from multiprocessing import Process, Queue
 
 from runner.util import UtilLogger, BaseClass
 
-def info(msg: str) -> None:
-    print(colorize('green', msg))
-
-def warning(msg: str) -> None:
-    print(colorize('yellow', msg))
-    
-def error(msg: str) -> None:
-    print(colorize('red', msg))
-    
-def delay():
-    sleep(0.1)
-
 class ProcessTask(BaseClass):
     """
     An abstract class defines the task that can be executed by ``ProcessPool``
@@ -33,128 +21,20 @@ class Task(ProcessTask):
     An implementation of the interface ``ProcessTask`` for the ``GroupController``
     """
     def __init__(self, call: Union[str, Callable]) -> None:
+        """
+        :param Union[str, Callable] call: A callable function call or a command in string
+        """
+        if isinstance(call, str):
+           self.is_str = True
+        elif callable(call):
+            self.is_str = False
+        else:
+            raise TypeError(f"Parameter 'call' must be either string or callable")
+
         self.call = call
         self.param_list = []
         self.param_list_str = ''
         self.param_list_dict = {}
-        
-        if isinstance(self.call, str):
-           self.is_str = True
-        elif isinstance(self.call, types.FunctionType):
-            self.is_str = False
-        else:
-            raise TypeError(f"Parameter 'call' must be either string or callable")
-    
-    def __convert_param_list_to_str(self) -> str:
-        params = []
-        for param in self.param_list:
-            if param[0] == '':
-                params.append(''.join([str(param[0]), str(param[1])]))
-            else:
-                params.append(' '.join([str(param[0]), str(param[1])]))
-        return ' '.join(params)
-        
-    def __convert_param_list_to_dict(self) -> dict:
-        params = {}
-        for param in self.param_list:
-            params[param[0]] = param[1]
-        return params
-    
-    def __update_task(self):
-        self.param_list_str = self.__convert_param_list_to_str()
-        self.param_list_dict = self.__convert_param_list_to_dict()
-    
-    def __union_dict(self, d_1, d_2):
-        return dict(list(d_1.items()) + list(d_2.items()))
-    
-    def add_options(self, options: list) -> None:
-        if isinstance(options, list):
-            if len(options) > 0:
-                self.param_list += options
-                self.__update_task()
-        elif options != None:
-            raise TypeError(f"Parameter 'options' should be a list or None.")
-
-    def get(self) -> Union[Tuple[Callable, dict], Tuple[str, str]]:
-        if self.is_str:
-            param = self.__convert_param_list_to_str()
-        else:
-            param = self.__convert_param_list_to_dict()
-        return self.call, param
-    
-    def run(self) -> None:
-        call, param = self.get()
-        if self.is_str:
-            # print([call, param])
-            if isinstance(param, str) and len(param) > 0:
-                try:
-                    # subprocess.run([call, param])
-                    os.system(f"{call} {param}")
-                except:
-                    traceback.print_exc()
-                    warning(f"Warning: Cannot execute the task: {call} {param}")
-            else:   
-                try: 
-                    # subprocess.run([call])
-                    os.system(f"{call} {param}")
-                except:
-                    traceback.print_exc()
-                    warning(f"Warning: Cannot execute the task: {call}")
-        else:
-            try: 
-                call(**param)
-            except:
-                traceback.print_exc()
-                warning(f"Warning: Cannot execute the task: {call.__name__}({param})")
-    
-    def __str__(self) -> str:
-        params = []
-        for param in self.param_list:
-            if param[0] == '':
-                params.append(''.join([str(param[0]), str(param[1])]))
-            else:
-                params.append(' '.join([str(param[0]), str(param[1])]))
-        param_str = ' '.join(params)
-        
-        if self.is_str:
-            string = f'{self.call} {param_str}'
-        else:
-            string = f'{self.call.__name__}(): {param_str}'
-        return string
-    
-    def __repr__(self) -> str:
-        return self.__str__()
-
-class ProcessArg():
-    """
-    A structure of the argument of the process
-    """
-    def __init__(self, id: int, msg_in_queue: Queue, msg_out_queue: Queue):
-        """
-        :param int id: The process id
-        :param ``Queue`` msg_in_queue: A message queue that the master can send message to slaves with
-        :param ``Queue`` msg_out_queue: A message queue that the slaves can send message to master with
-        """
-        self.id = id
-        self.msg_in_queue = msg_in_queue
-        self.msg_out_queue = msg_out_queue
-        
-class ProcessPool(BaseClass):
-    """
-    A process pool manager
-    """
-    # Status msg
-    RUNNING_MSG = 'ongoing'
-    DONE_MSG = 'done'
-
-    def __init__(self, num_process: int):
-        """
-        :param int num_process: The number of the processes
-        """
-        self.num_process = num_process
-        self.msg_name = 'msg'
-        self.task_name = 'task'
-        self.res_name = 'result'
 
         # Logger
         self.logger = self._set_UtilLogger(module='Runner', submodule='TaskRunner', verbose=UtilLogger.INFO)
@@ -194,6 +74,199 @@ class ProcessPool(BaseClass):
         :param **kwargs kwargs: The keyword arguments of function ``type_check`` in module ``Util``
         """
         super()._type_check(*args, **kwargs)
+    
+    def __convert_param_list_to_str(self) -> str:
+        """
+        Convert the parameter list into the string for command line
+
+        returns: The options of the call in string
+        :rtype: str
+        """
+        params = []
+        for param in self.param_list:
+            if param[0] == '':
+                params.append(''.join([str(param[0]), str(param[1])]))
+            else:
+                params.append(' '.join([str(param[0]), str(param[1])]))
+        return ' '.join(params)
+        
+    def __convert_param_list_to_dict(self) -> dict:
+        """
+        Convert the parameter list into the dictionary for a callable function call
+
+        returns: The options of the call in dictionary
+        :rtype: dict
+        """
+        params = {}
+        for param in self.param_list:
+            params[param[0]] = param[1]
+        return params
+    
+    def __update_task(self):
+        """
+        Update the list and the dictionary of the arguments
+        """
+        self.param_list_str = self.__convert_param_list_to_str()
+        self.param_list_dict = self.__convert_param_list_to_dict()
+    
+    def add_arguments(self, options: list) -> None:
+        """
+        Add new arguments for the command or callable function call
+
+        :param list options: The arguments for the call
+        """
+        self.__type_check(obj=options, obj_type=list, obj_name='options', is_allow_none=True)
+
+        if isinstance(options, list):
+            if len(options) > 0:
+                self.param_list += options
+                self.__update_task()
+
+    def get(self) -> Union[Tuple[Callable, dict], Tuple[str, str]]:
+        """
+        Get the call and the arguments of the task
+
+        returns: the call and the arguments of the task
+        :rtype: Union[Tuple[Callable, dict], Tuple[str, str]]
+        """
+        if self.is_str:
+            param = self.__convert_param_list_to_str()
+        else:
+            param = self.__convert_param_list_to_dict()
+        return self.call, param
+    
+    def run(self) -> None:
+        """
+        Run the task. If the task cannot be executed, log an error.
+        """
+        call, param = self.get()
+        if self.is_str:
+            # print([call, param])
+            if isinstance(param, str) and len(param) > 0:
+                try:
+                    # subprocess.run([call, param])
+                    os.system(f"{call} {param}")
+                except:
+                    self.__error(f"Cannot execute the task: {call} {param}")
+                    traceback.print_exc()
+            else:   
+                try: 
+                    # subprocess.run([call])
+                    os.system(f"{call} {param}")
+                except:
+                    self.__error(f"Cannot execute the task: {call}")
+                    traceback.print_exc()
+        else:
+            try: 
+                call(**param)
+            except:
+                self.__error(f"Cannot execute the task: {call.__name__}({param})")
+                traceback.print_exc()
+    
+    def __str__(self) -> str:
+        """
+        Override the method of __str__
+        """
+        params = []
+        for param in self.param_list:
+            if param[0] == '':
+                params.append(''.join([str(param[0]), str(param[1])]))
+            else:
+                params.append(' '.join([str(param[0]), str(param[1])]))
+        param_str = ' '.join(params)
+        
+        if self.is_str:
+            string = f'{self.call} {param_str}'
+        else:
+            string = f'{self.call.__name__}(): {param_str}'
+        return string
+    
+    def __repr__(self) -> str:
+        """
+        Override the method of __repr__
+        """
+        return self.__str__()
+
+class ProcessArg():
+    """
+    A structure of the argument of the process
+    """
+    def __init__(self, id: int, msg_in_queue: Queue, msg_out_queue: Queue):
+        """
+        :param int id: The process id
+        :param ``Queue`` msg_in_queue: A message queue that the master can send message to slaves with
+        :param ``Queue`` msg_out_queue: A message queue that the slaves can send message to master with
+        """
+        self.id = id
+        self.msg_in_queue = msg_in_queue
+        self.msg_out_queue = msg_out_queue
+        
+class ProcessPool(BaseClass):
+    """
+    A process pool manager
+    """
+    # Status msg
+    RUNNING_MSG = 'ongoing'
+    DONE_MSG = 'done'
+    MSG_NAME = 'msg'
+    TASK_NAME = 'task'
+    RES_NAME = 'result'
+
+    def __init__(self, num_process: int, delay: float=0.0):
+        """
+        :param int num_process: The number of the processes
+        :param float delay: The waiting gap between launching processes
+        """
+        self.__type_check(obj=num_process, obj_type=int, obj_name='num_process', is_allow_none=False)
+        self.__type_check(obj=delay, obj_type=float, obj_name='delay', is_allow_none=False)
+
+        self.num_process = num_process
+        self.delay = delay
+
+        # Logger
+        self.logger = self._set_UtilLogger(module='Runner', submodule='TaskRunner', verbose=UtilLogger.INFO)
+
+    def __info(self, *args, **kwargs) -> None:
+        """
+        Log info via `UtilLogger.info`
+
+        :param *args args: The positional arguments of method `UtilLogger.info`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.info`
+        """
+        super()._info(*args, **kwargs)
+
+    def __warning(self, *args, **kwargs) -> None:
+        """
+        Log warning via ``UtilLogger.warning``
+
+        :param *args args: The positional arguments of method `UtilLogger.warning`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.warning`
+        """
+        super()._warning(*args, **kwargs)
+        
+    def __error(self, *args, **kwargs) -> None:
+        """
+        Log error via ``UtilLogger.error``
+
+        :param *args args: The positional arguments of method `UtilLogger.error`
+        :param **kwargs kwargs: The keyword arguments of method `UtilLogger.error`
+        """
+        super()._error(*args, **kwargs)
+
+    def __type_check(self, *args, **kwargs) -> None:
+        """
+        Type check via function ``type_check`` in module ``Util``
+
+        :param *args args: The positional arguments of function ``type_check`` in module ``Util``
+        :param **kwargs kwargs: The keyword arguments of function ``type_check`` in module ``Util``
+        """
+        super()._type_check(*args, **kwargs)
+
+    def __wait(self):
+        """
+        Sleep for a while between launching processes
+        """
+        sleep(self.delay)
         
     def init(self, get_task_fn: Callable[[int], TypeVar("T")], on_recv_fn: Callable[[TypeVar("T")], None]) -> None:
         """
@@ -202,11 +275,6 @@ class ProcessPool(BaseClass):
         :param Callable[[int], T] get_task_fn: 
         :param Callable[[T], None] on_recv_fn: The callback function that would be call when the master recieve the message sent from slaves
         """
-        # if not isinstance(get_task_fn, types.FunctionType):
-        #     raise TypeError(f"The parameter 'get_task_fn' should be a callable function.")
-        
-        # if not isinstance(on_recv_fn, types.FunctionType):
-        #     raise TypeError(f"The parameter 'on_recv_fn' should be a callable function.")
 
         self.__type_check(obj=get_task_fn, obj_type=callable, obj_name='get_task_fn', is_allow_none=False)
         self.__type_check(obj=on_recv_fn, obj_type=callable, obj_name='on_recv_fn', is_allow_none=False)
@@ -215,27 +283,62 @@ class ProcessPool(BaseClass):
         self.on_recv_fn = on_recv_fn
         
     def __pack_to_slave_msg(self, msg: str, task: ProcessTask) -> dict:
-        return {self.msg_name: msg, self.task_name: task}
+        """
+        Pack the message from master to the slaves
+
+        :param int msg: The message from the master to the slaves in string
+        :param ProcessTask task: The task assigned to the slave
+        returns: The pack of the message from the master to the slaves containing message and task
+        :rtype: dict
+        """
+        self.__type_check(obj=msg, obj_type=str, obj_name='the message to be packed from the master to the slaves', is_allow_none=False)
+        self.__type_check(obj=task, obj_type=ProcessTask, obj_name='task', is_allow_none=False)
+
+        return {self.MSG_NAME: msg, self.TASK_NAME: task}
     
     def __unpack_to_slave_msg(self, queue_msg: dict) -> Tuple[str, ProcessTask]:
-        msg = queue_msg.get(self.msg_name, None)
-        task = queue_msg.get(self.task_name, None)
+        """
+        Uppack the message from the master to the slaves
+
+        :param dict queue_msg: The message from the master to the slaves
+        returns: The message from the master to the slaves containing the string message and the task
+        :rtype: Tuple[str, ProcessTask]
+        """
+        self.__type_check(obj=queue_msg, obj_type=dict, obj_name='queue_msg', is_allow_none=False)
+
+        msg = queue_msg.get(self.MSG_NAME, None)
+        task = queue_msg.get(self.TASK_NAME, None)
         # print(f"Msg: {msg}, Task: {task}")
         
-        if not isinstance(msg, str):
-            raise TypeError(f"The value of the key '{self.msg_name}' in the queue message isn't a integer, but {type(msg)}.")
-        if not isinstance(task, ProcessTask):
-            raise TypeError(f"The value of the key '{self.task_name}' in the queue message isn't a ProcessTask, but {type(task)}.")
+        self.__type_check(obj=msg, obj_type=str, obj_name='the unpacked message to be packed from the master to the slaves', is_allow_none=False)
+        self.__type_check(obj=task, obj_type=ProcessTask, obj_name='task', is_allow_none=False)
         return msg, task
     
-    def __send_to_slave(self, id: int, msg: str, task: Callable) -> None:
+    def __send_to_slave(self, id: int, msg: str, task: ProcessTask) -> None:
+        """
+        Send the assigned tasks to the slaves from the master, used by the master
+
+        :param int id: The ID of the slave which the task is assigned to
+        :param str msg: The string message to the slaves
+        :param ProcessTask task: The task that assigned to the slaves
+        """
+        self.__type_check(obj=id, obj_type=int, obj_name='id', is_allow_none=False)
+        self.__type_check(obj=msg, obj_type=str, obj_name='the message to be packed from the master to the slaves', is_allow_none=False)
+        self.__type_check(obj=task, obj_type=ProcessTask, obj_name='task', is_allow_none=False)
         # print(f"Send to Slave {id}, Msg: {msg}")
         self.send_msg_to_slave_queue_list[id].put(self.__pack_to_slave_msg(msg=msg, task=task))
         
     def __recv_from_slave(self) -> Tuple[str, object]:
+        """
+        Receive message and the results from the slaves, used by the master
+
+        returns: The message from slaves to the master contains the slave process ID and the return value after the slave finished the task
+        :rtype: Tuple[int, Union[object, None]]
+        """
         new_res = self.recv_msg_form_slave_queue.get()
         msg, res = self.__unpack_to_master_msg(queue_msg=new_res)
         # print(f"Recv from Slave {msg}, Msg: {msg}, Result: {res}")
+        self.__type_check(obj=msg, obj_type=int, obj_name='the message received from the slaves', is_allow_none=False)
         return msg, res
         
     def __pack_to_master_msg(self, msg: int, result: object) -> dict:
@@ -247,9 +350,9 @@ class ProcessPool(BaseClass):
         returns: The message from slaves to the master contains the slave process ID and the return value after the slave finished the task
         :rtype: dict
         """
-        self.__type_check(obj=msg, obj_type=int, obj_name='msg', is_allow_none=False)
+        self.__type_check(obj=msg, obj_type=int, obj_name='the message to be packed from slaves to the master', is_allow_none=False)
 
-        return {self.msg_name: msg, self.res_name: result}
+        return {self.MSG_NAME: msg, self.RES_NAME: result}
     
     def __unpack_to_master_msg(self, queue_msg: dict) -> Tuple[int, Union[object, None]]:
         """
@@ -261,16 +364,15 @@ class ProcessPool(BaseClass):
         """
         self.__type_check(obj=queue_msg, obj_type=dict, obj_name='queue_msg', is_allow_none=False)
 
-        msg = queue_msg.get(self.msg_name, None)
-        res = queue_msg.get(self.res_name, None)
+        msg = queue_msg.get(self.MSG_NAME, None)
+        res = queue_msg.get(self.RES_NAME, None)
         
-        if not isinstance(msg, int):
-            raise TypeError(f"The value of the key '{self.msg_name}' in the queue message isn't a integer, but {type(msg)}.")
+        self.__type_check(obj=msg, obj_type=int, obj_name='the unpacked message from slaves to the master', is_allow_none=False)
         return msg, res
         
     def __acquire_task(self, arg: ProcessArg) -> Tuple[str, ProcessTask]:
         """
-        Aquire the tasks that assigned to the slave processes
+        Aquire the tasks that assigned to the slave processes, used by the slaves
         msg = {
             'msg': string message
             'task': Callable function to execute
@@ -280,18 +382,19 @@ class ProcessPool(BaseClass):
         returns: The message of the task and the task object in type of ``ProcessTask``
         :rtype: Tuple[str, ProcessTask]
         """
-        self.__type_check(obj=arg, obj_type=ProcessArg, obj_name='arg', is_allow_none=False)
+        self.__type_check(obj=arg, obj_type=ProcessArg, obj_name='the argument of the slave processes', is_allow_none=False)
 
         queue_msg = arg.msg_in_queue.get()
         return self.__unpack_to_slave_msg(queue_msg=queue_msg)
     
     def __send_res(self, arg: ProcessArg, res: object) -> None:
         """
-        Send the results to the master after the slave finished the task
+        Send the results to the master after the slave finished the task, used by the slaves
+
         :param ``ProcessArg`` arg: The arguments of the process that wants to aquire a task
         :param object res: The return values of the task
         """
-        self.__type_check(obj=arg, obj_type=ProcessArg, obj_name='arg', is_allow_none=False)
+        self.__type_check(obj=arg, obj_type=ProcessArg, obj_name='the argument of the slave processes', is_allow_none=False)
 
         arg.msg_out_queue.put(self.__pack_to_master_msg(msg=arg.id, result=res))
         
@@ -299,7 +402,7 @@ class ProcessPool(BaseClass):
         """
         :param ``ProcessArg`` arg: The arguments of the slave processes
         """
-        self.__type_check(obj=arg, obj_type=ProcessArg, obj_name='arg', is_allow_none=False)
+        self.__type_check(obj=arg, obj_type=ProcessArg, obj_name='the argument of the slave processes', is_allow_none=False)
 
         # Acquire new task
         msg, task = self.__acquire_task(arg=arg)
@@ -347,9 +450,10 @@ class ProcessPool(BaseClass):
         # Start the processes
         for proc in self.proc_list:
             proc.start()
-            delay()
+            self.__wait()
         
         # Phase 2
+        # Receive results and send task repeatly
         while(True):
             # Receive results
             recv_msg, recv_res = self.__recv_from_slave()
@@ -362,9 +466,11 @@ class ProcessPool(BaseClass):
             self.__send_to_slave(id=recv_msg, msg=self.RUNNING_MSG, task=new_task)
             
         # Phase 3
+        # Send finished message
         for id in range(self.num_process):
             self.__send_to_slave(id=id, msg=self.DONE_MSG, task=ProcessTask())
-            
+        
+        # Join processes
         for proc in self.proc_list:
             proc.join()
         
@@ -460,7 +566,7 @@ class GroupController(BaseClass):
     ASYNC_ENTRY_NAME = 'Async'
     CALLBACK_ENTRY_NAME = 'Callback'
 
-    def __init__(self, section_name: str, group_name: str, tasks: dict) -> None:
+    def __init__(self, section_name: str, group_name: str, tasks: dict, delay: float=0.0) -> None:
         """
         :param str section_name: The name of the section of the group
         :param str group_name: The name of a specific group 
@@ -471,6 +577,7 @@ class GroupController(BaseClass):
         self.__type_check(obj=section_name, obj_type=str, obj_name='section_name', is_allow_none=False)
         self.__type_check(obj=group_name, obj_type=str, obj_name='group_name', is_allow_none=False)
         self.__type_check(obj=tasks, obj_type=dict, obj_name='tasks', is_allow_none=False)
+        self.__type_check(obj=delay, obj_type=float, obj_name='delay', is_allow_none=False)
         
         if (tasks.keys() == None) or (len(tasks.keys()) == 0):
             raise ValueError(f"Parameter 'tasks' of section-group '{section_name} - {group_name}' shouldn't be empty")
@@ -478,6 +585,7 @@ class GroupController(BaseClass):
         self.section_name = section_name
         self.group_name = group_name
         self.tasks = tasks
+        self.delay = delay
 
         # Logger
         self.logger = self._set_UtilLogger(module='Runner', submodule='TaskRunner', verbose=UtilLogger.INFO)
@@ -528,8 +636,6 @@ class GroupController(BaseClass):
         returns: A list of all combinations below the depth of entry_idx
         :rtype: list
         """
-        # if not isinstance(param_list, list):
-        #     raise TypeError(f"Parameter 'param_list' is not a list")
         self.__type_check(obj=param_list, obj_type=list, obj_name='param_list', is_allow_none=False)
         
         # If the list of the parameter grid if empty
@@ -544,8 +650,6 @@ class GroupController(BaseClass):
         entry_name = param_list[entry_idx][0]
         vals = param_list[entry_idx][1]
         
-        # if not isinstance(vals, list):
-        #     raise TypeError(f"The value of the entry of the parameters should be a list")
         self.__type_check(obj=vals, obj_type=list, obj_name='the value of the entry of the parameters', is_allow_none=False)
         
         # If the parameter grid is empty
@@ -619,7 +723,7 @@ class GroupController(BaseClass):
             # self.process_pool = ProcessPool(num_process=1)
             self.is_multi_resources = False
         else:    
-            self.process_pool = ProcessPool(num_process=len(self.async_combination_list))
+            self.process_pool = ProcessPool(num_process=len(self.async_combination_list), delay=self.delay)
             self.is_multi_resources = True
             
         self.results_list = []
@@ -647,24 +751,6 @@ class GroupController(BaseClass):
         
         return next_idx, next_param
     
-    # def __next_async(self, is_wait: bool=True):
-    #     if not self.is_init_tasks:
-    #         raise BaseException(f"Please call method 'self.__init_tasks()' before using __next_async()")
-    #     # 
-    #     next_idx = self.async_counter
-    #     # print(f"Async next_idx: {next_idx}")
-        
-    #     # Choose 
-    #     async_num = len(self.async_combination_list)
-    #     if async_num > 0:
-    #         next_async = self.async_combination_list[self.async_counter]
-    #         self.async_counter = (self.async_counter + 1) % async_num
-    #     else:
-    #         next_async = None
-    #         next_idx = None
-        
-    #     return next_idx, next_async
-    
     def __make_task(self, call: Union[str, Callable], param: list, async_opt: list) -> Task:
         """
         Craft a new task according to the given parameters
@@ -676,8 +762,8 @@ class GroupController(BaseClass):
         :rtype: ``Task``
         """
         task = Task(call=call)
-        task.add_options(options=param)
-        task.add_options(options=async_opt)
+        task.add_arguments(options=param)
+        task.add_arguments(options=async_opt)
         
         return task
         
@@ -719,16 +805,12 @@ class GroupController(BaseClass):
         :param int id: Process id of the process requiring a new task
         :param ``Task`` task: The given task need to be executed
         """
-        # info(f"-->Run Task: {self.section_name} | {self.group_name} | {task}")
         self.__type_check(obj=id, obj_type=int, obj_name='id', is_allow_none=False)
         self.__type_check(obj=task, obj_type=Task, obj_name='task', is_allow_none=False)
         self.__info(f"Run Task: {self.section_name} | {self.group_name} | {task}")
         
-        # if isinstance(task, Task):
         task.run()
         self.resourceMgr.release_resource(id=id)
-        # else:
-        #     ValueError(f"Parameter 'task' requires a Task object.")
             
     def run(self) -> None:
         """
@@ -766,66 +848,49 @@ class GroupController(BaseClass):
                 while next_task is not None:
                     self.__run_task(id=0, task=next_task)
                     next_task = self.__next_task(id=0, is_blocking=False)
-        
-    # def run(self):
-    #     self.__init_tasks()
-    #     next_param_idx, next_param = self.__next_param()
-        
-    #     # Single task
-    #     if next_param == None:
-    #         # Make task
-    #         task = self.__make_task(call=self.call, param=None, async_opt=None)
-    #         # Run task
-    #         self.__run_task(id=0, task=task)
-        
-    #     # Multiple tasks
-    #     while(next_param != None):
-    #         # Runtime decision
-    #         next_async_idx, next_async = self.__next_async()
-    #         # print(f"Next Task: {next_param}, Next Async: {next_async}")
-            
-    #         # Make task
-    #         task = self.__make_task(call=self.call, param=next_param, async_opt=next_async)
-    #         # Run task
-    #         self.__run_task(id=0, task=task)
-    #         # Get next task
-    #         next_param_idx, next_param = self.__next_param()
 
 class TaskRunner(BaseClass):
     """
     The ``TaskRunner`` can execute a command in string or a Callable/function in Python. It can also allocate resources like GPUs and 
-     schedule tasks to the multiple resources concurrently.
+    schedule tasks to the multiple resources concurrently.
 
-     A config is like:
-    section-1: # Sequential execution
-        group-1: # Asynchronous / Synchronous execution
-            Call: python GAN.py # A string command | run_fn # A function callable 
-            Param: {
-                '-epoch': [100, 10000, 100000]
-                '-decay': ['exp', 'anneal', 'static']
+    A config is like:
+    {
+        section-1:{ # Sequential execution
+            group-1:{ # Asynchronous / Synchronous execution
+                Call: python GAN.py # A string command | run_fn # A function callable 
+                Param: {
+                    '-epoch': [100, 10000, 100000]
+                    '-decay': ['exp', 'anneal', 'static']
+                }
+                'Async': {
+                    '-gpu': [0, 1, 2, 3]
+                }
+            },
+            group-2:{
+                Call: 'python GAN2.py'
+                Param: {
+                    '-epoch': [1002, 100002, 1000002]
+                    '-decay': ['exp', 'anneal', 'static']
+                }
+                'Async': {
+                    '-gpu': [0, 1, 2, 3]
+                }
             }
-            'Async': {
-                '-gpu': [0, 1, 2, 3]
-            }
-        group-2:
-            Call: 'python GAN2.py'
-            Param: {
-                '-epoch': [1002, 100002, 1000002]
-                '-decay': ['exp', 'anneal', 'static']
-            }
-            'Async': {
-                '-gpu': [0, 1, 2, 3]
-            }
-    section-2:
+        },
+        section-2:{...
+    }
     """
 
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: dict, delay: float=0.0) -> None:
         """
         :param dict config: The configuration of the ``TaskRuner``
         """
         self.__type_check(obj=config, obj_type=dict, obj_name='config', is_allow_none=False)
+        self.__type_check(obj=delay, obj_type=float, obj_name='delay', is_allow_none=False)
 
         self.config = config
+        self.delay = delay
 
         # Logger
         self.logger = self._set_UtilLogger(module='Runner', submodule='TaskRunner', verbose=UtilLogger.INFO)
@@ -866,6 +931,12 @@ class TaskRunner(BaseClass):
         """
         super()._type_check(*args, **kwargs)
 
+    def __wait(self):
+        """
+        Sleep for a while between launching groups
+        """
+        sleep(self.delay)
+
     def __run_group(self, section_name: str, group_name: str, tasks: dict) -> Process:
         """
         Run the tasks of specific section-group
@@ -882,11 +953,11 @@ class TaskRunner(BaseClass):
 
         def run_group_controller(section_name: str, group_name: str, tasks: dict):
             try:
-                gc = GroupController(section_name=section_name, group_name=group_name, tasks=tasks)
+                gc = GroupController(section_name=section_name, group_name=group_name, tasks=tasks, delay=self.delay)
                 gc.run()
             except:
-                traceback.print_exc()
                 self.__error(f"Something wrong with the section-group '{section_name} - {group_name}', fail to finish the task of the group")
+                traceback.print_exc()
             
         proc = Process(target=run_group_controller, args=(section_name, group_name, tasks))
         proc.start()
@@ -916,9 +987,9 @@ class TaskRunner(BaseClass):
                 new_group_proc = self.__run_group(section_name=section_name, group_name=group_name, tasks=tasks)
                 group_proc_list.append(new_group_proc)
             except:
-                traceback.print_exc()
                 self.__error(f"Something wrong with the section-group '{section_name} - {group_name}', fail to finish the tasks of the group")
-            delay()
+                traceback.print_exc()
+            self.__wait()
             
         # Block until all processes finish
         for group_proc in group_proc_list:
@@ -938,53 +1009,5 @@ class TaskRunner(BaseClass):
             try:
                 self.__run_section(section_name=section_name, groups=groups)
             except:
-                traceback.print_exc()
                 self.__error(f"Something wrong with the section '{section_name}', fail to finish the tasks of the section")
-     
-# def test_run(epoch :int, decay: str, dataset_size: int, gpu: int):
-#     print(f"Epoch: {epoch}, Decay: {decay}, Dataset Size: {dataset_size}, GPU: {gpu}")
-    
-def test_run(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):
-    import os
-    import jax.numpy as np
-    os.environ["CUDA_VISIBLE_DEVICES"] = f'{gpu}'
-    print(f"Epoch: {epoch}, Decay: {decay}, Dataset Size: {dataset_size}, Machine: {machine}, GPU: {gpu}")
-    sleep(5)
-       
-if __name__ == '__main__':
-    config = {
-        'section-1': { # Each section would be executed sequentially.
-            'group-1': { # The groups under the same section would be executed concurrently
-                'Call': test_run, # Call can be either a function call or a command in string
-                'Param': { # The TaskRunner would list all kinds of combination of the parameters and execute them once
-                    'decay': ['exp', 'anneal', 'static'],
-                    'epoch': [100, 1000, 10000],
-                    'dataset_size': [1000, 2000, 3000]
-                },
-                'Async': { # The task under the same group would be schedule to the resources by TaskRunner during runtime.
-                    'machine': [0, 1],
-                    'gpu': [0, 1]
-                }
-            },    
-            'group-2':{ # 'group-2' can be seem as another resource group that handle different task from 'group-1' during 'section-1'
-                'Call': 'ls',
-                'Param': {
-                    '': ['-l', '-a', '-la']  
-                },
-                'Async': {
-                    '': []
-                }   
-            }    
-        },
-        'section-2': {
-            'group-1': {
-                'Call': 'ls',
-                'Param': {
-                    '': ['-a']
-                }
-            }
-        }
-    }
-    
-    tr = TaskRunner(config=config)
-    tr.run()
+                traceback.print_exc()

@@ -6,7 +6,7 @@ The scalable runner integrate several pacakages that can execute the Python func
 
 - [TaskRnner](#TaskRunner): A scalable task runner can schedule tasks to different groups of resources/machines. All you need to do is writting down the config file.
 - [SSH](#SSH): A warpper of [paramiko](https://github.com/paramiko/paramiko) and we've implemented **auto-retrying** feature to guarantee the task can always be done.
-- [DBRunner](#DBRunner): 
+- [DBRunner](#DBRunner): It can benchmark ElaSQL DBMS automatically with [`Auto-Bencher`](https://github.com/elasql/auto-bencher)
 
 ## Installation
 

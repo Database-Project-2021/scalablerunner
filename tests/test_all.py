@@ -251,7 +251,7 @@ class TestTaskRunner(unittest.TestCase):
             }
         }
         
-        tr = TaskRunner(config=config)
+        tr = TaskRunner(config=config, delay=0.5)
         tr.run()
 
 def config_db_runner(db_runner: DBRunner) -> DBRunner:

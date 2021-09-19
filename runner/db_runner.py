@@ -171,67 +171,33 @@ class DBRunner(BaseClass):
         :param str error_msg: The error message
         :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
-        # res = None
-        # try:
-        #     self.__info(going_msg)
-        #     res = self.host.exec_command(command=command, retry_count=self.RETRY_COUNT)
-        #     self.__info(finished_msg)
-        #     return res
-        # except:
-        #     self.__error(error_msg)
-        #     traceback.print_exc()
-        #     return res
         
         res = self.__client_exec(fn_name='exec_command', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg, 
                                  command=command, cmd_retry_count=self.default_cmd_retry_count)
         return res
 
     def __scp_put(self, files: str, remote_path: str, recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
-        # try:
-        #     self.__info(going_msg)
-        #     self.host.put(files=files, remote_path=remote_path, recursive=recursive, retry_count=self.RETRY_COUNT)
-        #     self.__info(finished_msg)
-        # except:
-        #     self.__error(error_msg)
-        #     traceback.print_exc()
-
         self.__client_exec(fn_name='put', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
                            files=files, remote_path=remote_path, recursive=recursive)
 
     def __scp_putfo(self, fl: str, remote_path: str, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
-        # try:
-        #     self.__info(going_msg)
-        #     self.host.putfo(fl=fl, remote_path=remote_path, retry_count=self.RETRY_COUNT)
-        #     self.__info(finished_msg)
-        # except:
-        #     self.__error(error_msg)
-        #     traceback.print_exc()
-
         self.__client_exec(fn_name='putfo', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
                            fl=fl, remote_path=remote_path)
     
     def __scp_get(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
-        # try:
-        #     self.__info(going_msg)
-        #     self.host.get(remote_path=remote_path, local_path=local_path, recursive=recursive, retry_count=self.RETRY_COUNT)
-        #     self.__info(finished_msg)
-        # except:
-        #     self.__error(error_msg)
-        #     traceback.print_exc()
-
         self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
                            remote_path=remote_path, local_path=local_path, recursive=recursive)
     
     def __set_workspace(self, workspace: str) -> None:
-        self.WORKSPACE = workspace
-        self.DBRUNNER_AUTOBENHER_PATH = os.path.join(self.WORKSPACE, self.AUTOBENCHER_NAME)
-        self.DBRUNNER_TEMP_PATH = os.path.join(self.WORKSPACE, self.TEMP_DIR)
+        self.workspace = workspace
+        self.dbrunner_autobencher_path = os.path.join(self.workspace, self.AUTOBENCHER_NAME)
+        self.dbrunner_temp_path = os.path.join(self.workspace, self.TEMP_DIR)
 
         # Directory of configs on DB-Runner
-        self.DBRUNNER_CONFIG_DIR = os.path.join(self.WORKSPACE, self.AUTOBENCHER_NAME)
-        self.DBRUNNER_BENCHER_CONFIG_PATH = os.path.join(self.DBRUNNER_CONFIG_DIR, self.BENCHER_CONFIG)
-        self.DBRUNNER_LOAD_CONFIG_PATH = os.path.join(self.DBRUNNER_CONFIG_DIR, self.LOAD_CONFIG)
-        self.DBRUNNER_BENCH_CONFIG_PATH = os.path.join(self.DBRUNNER_CONFIG_DIR, self.BENCH_CONFIG)
+        self.dbrunner_config_dir = os.path.join(self.workspace, self.AUTOBENCHER_NAME)
+        self.dbrunner_bencher_config_path = os.path.join(self.dbrunner_config_dir, self.BENCHER_CONFIG)
+        self.dbrunner_load_config_path = os.path.join(self.dbrunner_config_dir, self.LOAD_CONFIG)
+        self.dbrunner_bencher_config_path = os.path.join(self.dbrunner_config_dir, self.BENCH_CONFIG)
 
     def set_default_is_raise_err(self, default_is_raise_err: bool) -> 'DBRunner':
         """
@@ -285,13 +251,6 @@ class DBRunner(BaseClass):
         self.host = SSH(hostname=self.hostname, username=self.username, password=self.password, port=self.port)
         self.host.set_default_is_raise_err(default_is_raise_err=self.default_is_raise_err)
         self.host.set_default_retry_count(default_retry_count=self.default_retry_count)
-        # try:
-        #     self.__info(f"Connecting to remote host")
-        #     self.host.connect(retry_count=self.RETRY_COUNT)
-        #     self.__info(f"Connected to remote host")
-        # except:
-        #     self.__error(f"Failed to connect remote host")
-        #     traceback.print_exc()
         
         self.__client_exec(fn_name='connect', going_msg=f"Connecting to remote host", finished_msg=f"Connected to remote host", error_msg=f"Failed to connect remote host")
         
@@ -384,7 +343,7 @@ class DBRunner(BaseClass):
         self.__type_check(obj=jar_dir, obj_type=str, obj_name='jar_dir', is_allow_none=False)
         self.jar_folder = jar_dir
         self.auto_bencher_sec['jar_dir'] = str(jar_dir)
-        self.jar_dir = os.path.join(self.WORKSPACE, self.AUTOBENCHER_NAME, self.JAR_FOLDER_NAME, self.jar_folder)
+        self.jar_dir = os.path.join(self.workspace, self.AUTOBENCHER_NAME, self.JAR_FOLDER_NAME, self.jar_folder)
 
         if not (server_count is None):
             self.auto_bencher_sec['server_count'] = str(server_count)
@@ -407,7 +366,7 @@ class DBRunner(BaseClass):
         # Upload bencher.toml
         fl = self.__dump_toml(self.bencher_config)
 
-        self.__scp_putfo(fl=fl, remote_path=self.DBRUNNER_BENCHER_CONFIG_PATH, 
+        self.__scp_putfo(fl=fl, remote_path=self.dbrunner_bencher_config_path, 
                          going_msg=f"Uploading config 'bencher.toml'...",
                          finished_msg=f"Uploaded config 'bencher.toml'",
                          error_msg=f"Failed to upload config 'bencher.toml'")
@@ -419,7 +378,7 @@ class DBRunner(BaseClass):
         """
         # Upload load.toml
         fl = self.__dump_toml(self.load_config)
-        self.__scp_putfo(fl=fl, remote_path=self.DBRUNNER_LOAD_CONFIG_PATH,
+        self.__scp_putfo(fl=fl, remote_path=self.dbrunner_load_config_path,
                          going_msg=f"Uploading config 'load.toml'...",
                          finished_msg=f"Uploaded config 'load.toml'",
                          error_msg=f"Failed to upload config 'load.toml'")
@@ -431,7 +390,7 @@ class DBRunner(BaseClass):
         """
         # Upload bench.toml
         fl = self.__dump_toml(self.bench_config)
-        self.__scp_putfo(fl=fl, remote_path=self.DBRUNNER_BENCH_CONFIG_PATH, 
+        self.__scp_putfo(fl=fl, remote_path=self.dbrunner_bencher_config_path, 
                          going_msg=f"Uploading config 'bench.toml'...", 
                          finished_msg=f"Uploaded config 'bench.toml'", 
                          error_msg=f"Failed to upload config 'bench.toml'")
@@ -447,15 +406,15 @@ class DBRunner(BaseClass):
             raise BaseException(f"Please call method config_bencher() to config bencher.toml at first.")
 
         # Install autobencher
-        self.__ssh_exec_command(f"rm -rf {self.WORKSPACE}; mkdir {self.WORKSPACE}; cd {self.WORKSPACE}; git clone {self.AUTOBENCHER_GITHUB}; cd {self.AUTOBENCHER_NAME}; npm install")
+        self.__ssh_exec_command(f"rm -rf {self.workspace}; mkdir {self.workspace}; cd {self.workspace}; git clone {self.AUTOBENCHER_GITHUB}; cd {self.AUTOBENCHER_NAME}; npm install")
 
         # Create JAR directory and create TEMP directory for storing reports temporarily
-        self.__ssh_exec_command(f"mkdir -p {self.DBRUNNER_TEMP_PATH}; mkdir -p {self.jar_dir}")
+        self.__ssh_exec_command(f"mkdir -p {self.dbrunner_temp_path}; mkdir -p {self.jar_dir}")
 
         self.upload_bencher_config()
 
         # Init Auto-bencher
-        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} init', 
+        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} init', 
                                                         going_msg=f"Initializing database...", 
                                                         finished_msg=f"Initialized database", 
                                                         error_msg=f"Failed to initialize database")
@@ -518,7 +477,7 @@ class DBRunner(BaseClass):
         self.upload_load_config()
 
         # Run load test bed
-        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} load -d {self.DB_NAME} -p {self.LOAD_CONFIG}', 
+        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} load -d {self.DB_NAME} -p {self.LOAD_CONFIG}', 
                                                         going_msg=f"Loading test bed...", 
                                                         finished_msg=f"Loaded test bed", 
                                                         error_msg=f"Failed to load test bed")
@@ -535,7 +494,7 @@ class DBRunner(BaseClass):
 
         # For each type of reports
         for file_dir, file_type in zip([self.CPU_DIR, self.LATENCY_DIR, self.DISK_DIR], [cpu, latency, diskio]):
-            res_dir = os.path.join(self.WORKSPACE, self.TEMP_DIR, name, file_dir)
+            res_dir = os.path.join(self.workspace, self.TEMP_DIR, name, file_dir)
             self.__ssh_exec_command(f"mkdir -p {res_dir}")
             # For each machine
             for id, server in enumerate(self.servers):
@@ -553,7 +512,7 @@ class DBRunner(BaseClass):
                                             error_msg=f"Failed to delete report '{file_name}' on servers")
 
     def pull_reports_to_local(self, name: str, path: str, is_delete_reports: bool=False):
-        reports_dir = os.path.join(self.DBRUNNER_TEMP_PATH, name)
+        reports_dir = os.path.join(self.dbrunner_temp_path, name)
 
         self.__scp_get(remote_path=reports_dir, local_path=path, recursive=True, 
                        going_msg=f"Pulling reports '{name}' to local '{path}'...", 
@@ -594,7 +553,7 @@ class DBRunner(BaseClass):
         self.upload_bench_config()
 
         # Run benchmark
-        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} benchmark -d {self.DB_NAME} -p {self.BENCH_CONFIG}', 
+        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} benchmark -d {self.DB_NAME} -p {self.BENCH_CONFIG}', 
                                                         going_msg=f"Benchmarking...", 
                                                         finished_msg=f"Benchmarked", 
                                                         error_msg=f"Failed to benchmark")
@@ -618,7 +577,7 @@ class DBRunner(BaseClass):
         :return: A tupel contains the standard input/output/error stream after executing the command.
         :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
-        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f"cd {self.DBRUNNER_AUTOBENHER_PATH}; node src/main.js -c {self.BENCHER_CONFIG} exec --command '{command}'", 
+        stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f"cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} exec --command '{command}'", 
                                                         going_msg=f"Executing command {command}...", 
                                                         finished_msg=f"Executed command {command}", 
                                                         error_msg=f"Failed to execute command {command}")
