@@ -34,7 +34,7 @@ Then, fill the information of the host IP/URL, login username, login password an
 hostname = "your_host_ip"
 username = "your_username"
 password = "your_password"
-port = your_host_port
+port = 22
 ```
 
 Finally, run the ``unittest`` command. It would run all testcases.
