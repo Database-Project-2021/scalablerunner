@@ -1,10 +1,10 @@
 # Scalable Runner
 
-The scalable runner integrate several pacakages that can execute the Python function/shell command remotely/locally. It can also schedule tasks to specific resources(ex: GPUs) automatically.
+The scalable-runner integrate several pacakages that can execute the Python function/shell command remotely/locally. It can also schedule tasks to specific resources(ex: GPUs) automatically.
 
 `Runner` consist of 3 modules:
 
-- [TaskRnner](#TaskRunner): A scalable task runner can schedule tasks to different groups of resources/machines. All you need to do is writting down the config file.
+- [TaskRnner](#TaskRunner): A scalable task-runner can schedule tasks to different groups of resources/machines. All you need to do is writting down the config file.
 - [SSH](#SSH): A warpper of [paramiko](https://github.com/paramiko/paramiko) and we've implemented **auto-retrying** feature to guarantee the task can always be done.
 - [DBRunner](#DBRunner): It can benchmark ElaSQL DBMS automatically with [`Auto-Bencher`](https://github.com/elasql/auto-bencher)
 
@@ -22,7 +22,7 @@ Create a ``host_infos.toml`` file under the root diretory of this package like
 
 ```
 - Runner
-    - runner
+    - scalablerunner
     - README.md
     - host_infos.toml
 ```
@@ -43,13 +43,13 @@ Finally, run the ``unittest`` command. It would run all testcases.
 python -m unittest tests.test_all
 ```
 
-If you only want to test some specific module, ex: ``runner.SSH`` module, you can run like this.
+If you only want to test some specific module, ex: ``scalablerunner.SSH`` module, you can run like this.
 
 ```bash
 python -m unittest tests.test_all.TestSSH
 ```
 
-Or even only test on specific function, like ``runner.SSH.put``, you can run
+Or even only test on specific function, like ``scalablerunner.SSH.put``, you can run
 
 ```bash
 python -m unittest tests.test_all.TestSSH.test_put
