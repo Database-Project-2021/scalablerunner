@@ -130,7 +130,7 @@ setup(
     #   py_modules=["my_module"],
     #
     # packages=find_packages(where='src'),  # Required
-    packages=['runner'],
+    packages=['scalablerunner'],
 
     # Specify which Python versions you support. In contrast to the
     # 'Programming Language' classifiers above, 'pip install' will check this

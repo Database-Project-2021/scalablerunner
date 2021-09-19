@@ -6,10 +6,10 @@ from time import sleep
 
 import toml
 
-from runner.util import info, warning, error, type_check, UtilLogger
-from runner.ssh import SSH
-from runner.db_runner import DBRunner
-from runner.task_runner import TaskRunner
+from scalablerunner.util import info, warning, error, type_check, UtilLogger
+from scalablerunner.ssh import SSH
+from scalablerunner.db_runner import DBRunner
+from scalablerunner.task_runner import TaskRunner
 
 # Global variables
 host_infos_file = 'host_infos.toml'
