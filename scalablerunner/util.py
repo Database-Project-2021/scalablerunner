@@ -1,6 +1,7 @@
 import logging
 import sys
 from typing import Collection, Type
+
 from pygments.console import colorize
 
 def debug(msg: str) -> None:
