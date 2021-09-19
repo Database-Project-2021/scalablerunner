@@ -1,6 +1,6 @@
 import os
 
-from runner.db_runner import DBRunner
+from scalablerunner.db_runner import DBRunner
 
 def get_temp_dir():
     # Create 'temp' directory

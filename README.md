@@ -62,7 +62,7 @@ python -m unittest tests.test_all.TestSSH.test_put
 An example config, please refer to the [example_task_runner.py](./examples/example_task_runner.py)
 
 ```python
-from runner.task_runner import TaskRunner
+from scalablerunner.task_runner import TaskRunner
 from time import sleep
 
 def test_run(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):
@@ -119,7 +119,7 @@ if __name__ == '__main__':
 Please refer to the [example_ssh.py](./examples/example_ssh.py)
 
 ```python
-from runner.ssh import SSH
+from scalablerunner.ssh import SSH
 
 if __name__ == '__main__':
     IP = "your_host_ip"
@@ -176,7 +176,7 @@ Please refer to the [example_db_runner.py](./examples/example_db_runner.py)
 ```python
 import os
 
-from runner.db_runner import DBRunner
+from scalablerunner.db_runner import DBRunner
 
 def get_temp_dir():
     # Create 'temp' directory

@@ -1,4 +1,4 @@
-from runner.ssh import SSH
+from scalablerunner.ssh import SSH
 
 if __name__ == '__main__':
     IP = "your_host_ip"
