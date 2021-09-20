@@ -6,10 +6,10 @@ from time import sleep
 
 import toml
 
-from runner.util import info, warning, error, type_check, UtilLogger
-from runner.ssh import SSH
-from runner.db_runner import DBRunner
-from runner.task_runner import TaskRunner
+from scalablerunner.util import info, warning, error, type_check, UtilLogger
+from scalablerunner.ssh import SSH
+from scalablerunner.dbrunner import DBRunner
+from scalablerunner.taskrunner import TaskRunner
 
 # Global variables
 host_infos_file = 'host_infos.toml'
@@ -172,6 +172,9 @@ def test_run(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):
     print(f"Epoch: {epoch}, Decay: {decay}, Dataset Size: {dataset_size}, Machine: {machine}, GPU: {gpu}")
     sleep(5)
 
+def test_err(flag: str, gpu: int):
+    raise BaseException(f"Something wrong with the flag {flag} on gpu {gpu}")
+
 class TestTaskRunner(unittest.TestCase):
     def __init__(self, methodName: str) -> None:
         super().__init__(methodName=methodName)
@@ -199,7 +202,35 @@ class TestTaskRunner(unittest.TestCase):
                     'Async': {
                         '': []
                     }   
-                }    
+                },
+                'group-3':{ # 'group-2' can be seem as another resource group that handle different task from 'group-1' during 'section-1'
+                    'Call': 'ls',
+                    'Param': {
+                        '': ['-l', '-a', '-la']  
+                    }  
+                },
+                'group-error': {
+                    'Call': test_err,
+                    'Param': {
+                        'flag': ['-a', '-l', '-la']
+                    },
+                    'Async': {
+                        'gpu': [0, 1, 2]
+                    } 
+                },
+                'group-bug': {
+                    'Call': [],
+                    'Param': {
+                        'flag': ['-a', '-l', '-la']
+                    },
+                    'Async': {
+                        'gpu': [0, 1, 2]
+                    } 
+                }
+            },
+            'section-error': {
+                'group-1': [],
+                'group-2': []
             },
             'section-2': {
                 'group-1': {
@@ -207,11 +238,20 @@ class TestTaskRunner(unittest.TestCase):
                     'Param': {
                         '': ['-a']
                     }
-                }
+                },
+                'group-wrong-cmd': {
+                    'Call': 'lsa',
+                    'Param': {
+                        '': ['-a', '-l', '-la']
+                    },
+                    'Async': {
+                        '': [0, 1, 2]
+                    } 
+                },
             }
         }
         
-        tr = TaskRunner(config=config)
+        tr = TaskRunner(config=config, delay=0.5)
         tr.run()
 
 def config_db_runner(db_runner: DBRunner) -> DBRunner:
@@ -221,6 +261,9 @@ def config_db_runner(db_runner: DBRunner) -> DBRunner:
                              package_path='/home/db-under/sychou/autobench/package/jdk-8u211-linux-x64.tar.gz')
     db_runner.config_cluster(server_count=4, jar_dir='latest')
     return db_runner
+
+def get_workspace_name():
+    return 'db_runner_workspace_test'
 
 class TestDBRunner(unittest.TestCase):
     # SSH default value
@@ -245,14 +288,14 @@ class TestDBRunner(unittest.TestCase):
         # Get host infos
         self.HOSTNAME, self.USERNAME, self.PASSWORD, self.PORT = get_host_infos()
 
-        self.dr = DBRunner()
+        self.dr = DBRunner(workspace=get_workspace_name())
     
     @classmethod
     def setUpClass(cls):
         # Get host infos
         HOSTNAME, USERNAME, PASSWORD, PORT = get_host_infos()
 
-        dr = DBRunner()
+        dr = DBRunner(workspace=get_workspace_name())
         dr.connect(hostname=HOSTNAME, username=USERNAME, password=PASSWORD, port=PORT)
         dr = config_db_runner(dr)
         dr.init()

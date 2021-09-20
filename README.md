@@ -1,19 +1,19 @@
 # Scalable Runner
 
-The scalable runner integrate several pacakages that can execute the Python function/shell command remotely/locally. It can also schedule tasks to specific resources(ex: GPUs) automatically.
+The scalable-runner integrate several pacakages that can execute the Python function/shell command remotely/locally. It can also schedule tasks to specific resources(ex: GPUs) automatically.
 
 `Runner` consist of 3 modules:
 
-- [TaskRnner](#TaskRunner): A scalable task runner can schedule tasks to different groups of resources/machines. All you need to do is writting down the config file.
+- [TaskRnner](#TaskRunner): A scalable task-runner can schedule tasks to different groups of resources/machines. All you need to do is writting down the config file.
 - [SSH](#SSH): A warpper of [paramiko](https://github.com/paramiko/paramiko) and we've implemented **auto-retrying** feature to guarantee the task can always be done.
-- [DBRunner](#DBRunner): 
+- [DBRunner](#DBRunner): It can benchmark ElaSQL DBMS automatically with [`Auto-Bencher`](https://github.com/elasql/auto-bencher)
 
 ## Installation
 
 Install with pip.
 
 ```bash
-pip install git+https://github.com/Database-Project-2021/runner.git
+pip install git+https://github.com/Database-Project-2021/scalablerunner.git
 ```
 
 ## Test
@@ -22,7 +22,7 @@ Create a ``host_infos.toml`` file under the root diretory of this package like
 
 ```
 - Runner
-    - runner
+    - scalablerunner
     - README.md
     - host_infos.toml
 ```
@@ -31,10 +31,10 @@ Then, fill the information of the host IP/URL, login username, login password an
 
 ```toml
 # File name: host_infos.toml
-hostname = "140.114.85.15"
-username = "db-under"
-password = "db-under"
-port = "22"
+hostname = "your_host_ip"
+username = "your_username"
+password = "your_password"
+port = 22
 ```
 
 Finally, run the ``unittest`` command. It would run all testcases.
@@ -43,13 +43,13 @@ Finally, run the ``unittest`` command. It would run all testcases.
 python -m unittest tests.test_all
 ```
 
-If you only want to test some specific module, ex: ``runner.SSH`` module, you can run like this.
+If you only want to test some specific module, ex: ``scalablerunner.SSH`` module, you can run like this.
 
 ```bash
 python -m unittest tests.test_all.TestSSH
 ```
 
-Or even only test on specific function, like ``runner.SSH.put``, you can run
+Or even only test on specific function, like ``scalablerunner.SSH.put``, you can run
 
 ```bash
 python -m unittest tests.test_all.TestSSH.test_put
@@ -59,10 +59,10 @@ python -m unittest tests.test_all.TestSSH.test_put
 
 ### Example Code
 
-An example config, please refer to the [example_task_runner.py](./examples/example_task_runner.py)
+An example config, please refer to the [example_taskrunner.py](./examples/example_taskrunner.py)
 
 ```python
-from runner.task_runner import TaskRunner
+from scalablerunner.taskrunner import TaskRunner
 from time import sleep
 
 def test_run(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):
@@ -119,7 +119,7 @@ if __name__ == '__main__':
 Please refer to the [example_ssh.py](./examples/example_ssh.py)
 
 ```python
-from runner.ssh import SSH
+from scalablerunner.ssh import SSH
 
 if __name__ == '__main__':
     IP = "your_host_ip"
@@ -171,12 +171,12 @@ if __name__ == '__main__':
 
 ## DBRunner
 
-Please refer to the [example_db_runner.py](./examples/example_db_runner.py)
+Please refer to the [example_dbrunner.py](./examples/example_dbrunner.py)
 
 ```python
 import os
 
-from runner.db_runner import DBRunner
+from scalablerunner.dbrunner import DBRunner
 
 def get_temp_dir():
     # Create 'temp' directory

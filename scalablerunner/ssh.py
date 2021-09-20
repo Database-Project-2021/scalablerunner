@@ -7,7 +7,7 @@ from typing import Tuple
 import paramiko
 from scp import SCPClient
 
-from runner.util import progress, progress4, UtilLogger, BaseClass
+from scalablerunner.util import progress, progress4, UtilLogger, BaseClass
 
 class RemoteType(Enum):
     """
@@ -257,7 +257,7 @@ class SSH(BaseClass):
     def exec_command(self, command: str, bufsize: int=-1, timeout: int=None, get_pty: bool=False, environment: dict=None, 
                      is_show_result: bool=True, retry_count: int=None, cmd_retry_count: int=2, is_raise_err: int=None) -> Tuple[paramiko.channel.ChannelStdinFile, paramiko.channel.ChannelFile, paramiko.channel.ChannelStderrFile]:
         """
-        Execute the command on the remote host.
+        Execute the command on the remote host. It's an wrapper of [paramiko.client.SSHClient.exec_command](http://docs.paramiko.org/en/stable/api/client.html#paramiko.client.SSHClient.exec_command)
 
         :param str command: The command would be executed on the remote host
         :param int bufsize: interpreted the same way as by the built-in ``file()`` function in Python
@@ -315,7 +315,7 @@ class SSH(BaseClass):
 
     def put(self, files: str, remote_path: str='.', recursive: bool=False, preserve_times: bool=False, retry_count: int=None, is_raise_err: int=None) -> None:
         """
-        Transfer files and directories to remote host.
+        Transfer files and directories to remote host. It's an wrapper of [paramiko.sftp_client.SFTPClient.put](http://docs.paramiko.org/en/stable/api/sftp.html#paramiko.sftp_client.SFTPClient.put)
 
         :param str files: A single path, or a list of paths to be transferred. `recursive` must be True to transfer directories.
         :param str remote_path: path in which to receive the files on the remote host. defaults to '.'
@@ -341,7 +341,7 @@ class SSH(BaseClass):
 
     def putfo(self, fl, remote_path: str, mode: str='0644', size: int=None, retry_count: int=None, is_raise_err: int=None):
         """
-        Transfer file-like object to remote host.
+        Transfer file-like object to remote host. It's an wrapper of [paramiko.sftp_client.SFTPClient.putfo](http://docs.paramiko.org/en/stable/api/sftp.html#paramiko.sftp_client.SFTPClient.putfo)
 
         :param file-like object fl: opened file or file-like object to copy
         :param str remote_path: full destination path
@@ -367,7 +367,7 @@ class SSH(BaseClass):
 
     def get(self, remote_path: str, local_path: str='', recursive: bool=False, preserve_times: bool=False, retry_count: int=None, is_raise_err: int=None):
         """
-        Transfer files and directories from remote host to localhost.
+        Transfer files and directories from remote host to localhost. It's an wrapper of [paramiko.sftp_client.SFTPClient.get](http://docs.paramiko.org/en/stable/api/sftp.html#paramiko.sftp_client.SFTPClient.get)
 
         :param str remote_path: path to retrieve from remote host. since this is
             evaluated by scp on the remote host, shell wildcards and

@@ -1,6 +1,7 @@
 import logging
 import sys
 from typing import Collection, Type
+
 from pygments.console import colorize
 
 def debug(msg: str) -> None:
@@ -88,20 +89,28 @@ def progress4(filename, size, sent, peername):
         sys.stdout.write("\n")
 
 def type_check(obj: object, obj_type: Type, obj_name: str, is_allow_none: bool) -> None:
+    """
+    Check type according to the given type
+
+    :param object obj: The object need to be check
+    :param Type obj_type: The type of the object
+    :param str obj_name: The name of the object
+    :param bool is_allow_none: Allow the obj is None or not
+    """
     if obj_type is callable:
         if not callable(obj):
             if not is_allow_none:
-                raise TypeError(f"Parameter '{obj_name}' should be a callable, but a {type(obj)}")
+                raise TypeError(f"{obj_name} should be a callable, but a {type(obj)}")
             else:
                 if not (obj == None):
-                    raise TypeError(f"Parameter '{obj_name}' should be a callable or None, but a {type(obj)}")
+                    raise TypeError(f"{obj_name} should be a callable or None, but a {type(obj)}")
     else:
         if not isinstance(obj, obj_type):
             if not is_allow_none:
-                raise TypeError(f"Parameter '{obj_name}' should be {obj_type}, but a {type(obj)}")
+                raise TypeError(f"{obj_name} should be {obj_type}, but a {type(obj)}")
             else:
                 if not (obj == None):
-                    raise TypeError(f"Parameter '{obj_name}' should be {obj_type} or None, but a {type(obj)}")
+                    raise TypeError(f"{obj_name} should be {obj_type} or None, but a {type(obj)}")
 
 def update(d: dict, u: dict) -> dict:
     for k, v in u.items():
