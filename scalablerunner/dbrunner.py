@@ -27,6 +27,11 @@ class DBRunner(BaseClass):
     SERVER_JAR_NAME = 'server.jar'
     CLIENT_JAR_NAME = 'client.jar'
 
+    # JDK
+    JDK_FOLDER_NAME = 'package'
+    JDK_TAR_GZ_NAME = 'jdk-8u211-linux-x64.tar.gz'
+    JDK_DEFAULT_DIR = '/opt/shared/jdk-8u211-linux-x64.tar.gz'
+
     # Some folders under DBRunner
     # WORKSPACE = f"db_runner_workspace"
     # DBRUNNER_AUTOBENHER_PATH = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
@@ -73,6 +78,7 @@ class DBRunner(BaseClass):
         self.default_is_raise_err = self.SSH_DEFAULT_IS_RAISE_ERR
         self.default_retry_count = self.SSH_DEFAULT_RETRY_COUNT
         self.default_cmd_retry_count = self.SSH_DEFAULT_CMD_RETRY_COUNT
+        self.default_jdk_dir = self.JDK_DEFAULT_DIR
 
         # Logger
         self.logger = self._set_UtilLogger(module='Runner', submodule='DBRunner', verbose=UtilLogger.INFO)
@@ -289,6 +295,8 @@ class DBRunner(BaseClass):
             self.bencher_config['jdk']['dir_name'] = str(dir_name)
         if not (package_path is None):
             self.bencher_config['jdk']['package_path'] = str(package_path)
+        else:
+            self.bencher_config['jdk']['package_path'] = str(self.default_jdk_dir)
 
         # Machines setting
         if not (servers is None):
@@ -341,6 +349,10 @@ class DBRunner(BaseClass):
         self.jar_folder = jar_dir
         self.auto_bencher_sec['jar_dir'] = str(jar_dir)
         self.jar_dir = os.path.join(self.workspace, self.AUTOBENCHER_NAME, self.JAR_FOLDER_NAME, self.jar_folder)
+
+        # Set up directory of JDK
+        self.jdk_dir = os.path.join(self.workspace, self.AUTOBENCHER_NAME, self.JDK_FOLDER_NAME)
+
 
         if not (server_count is None):
             self.auto_bencher_sec['server_count'] = str(server_count)
@@ -435,6 +447,20 @@ class DBRunner(BaseClass):
                        finished_msg=f'Uploaded server.jar', error_msg=f'Failed to upload server.jar')
         self.__scp_put(files=client_jar, remote_path=self.jar_dir, going_msg=f'Uploading client.jar', 
                        finished_msg=f'Uploaded client.jar', error_msg=f'Failed to upload client.jar')
+
+    def upload_jdk(self, autobencher_jdk: str) -> Tuple:
+        """
+        Upload the JDK file on to the autobencher machine.
+
+        :return: A tupel contains the standard input/output/error stream after executing the command.
+        :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
+        """
+        if not self.is_config_cluster:
+            raise BaseException(f"Please call method config_cluster() at first.")
+
+        stdin, stdout, stderr, is_successed = self.__scp_put(files=autobencher_jdk, remote_path=self.jdk_dir, going_msg=f'Uploading JDK file', 
+                       finished_msg=f'Uploaded JDK file', error_msg=f'Failed to upload JDK file')
+        return stdin, stdout, stderr, is_successed
 
     def __update_cluster_config(self, config: dict):
         if not config.get('auto_bencher', None) is None:
