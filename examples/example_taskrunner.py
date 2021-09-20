@@ -1,4 +1,4 @@
-from scalablerunner.task_runner import TaskRunner
+from scalablerunner.taskrunner import TaskRunner
 from time import sleep
 
 def test_run(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):

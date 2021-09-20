@@ -8,8 +8,8 @@ import toml
 
 from scalablerunner.util import info, warning, error, type_check, UtilLogger
 from scalablerunner.ssh import SSH
-from scalablerunner.db_runner import DBRunner
-from scalablerunner.task_runner import TaskRunner
+from scalablerunner.dbrunner import DBRunner
+from scalablerunner.taskrunner import TaskRunner
 
 # Global variables
 host_infos_file = 'host_infos.toml'
