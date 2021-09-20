@@ -297,6 +297,7 @@ class DBRunner(BaseClass):
         else:
             self.servers = self.bencher_config['machines']['servers']
         if not (sequencer is None):
+            self.sequencer = sequencer
             self.bencher_config['machines']['sequencer'] = sequencer
         if not (clients is None):
             self.bencher_config['machines']['clients'] = clients
@@ -484,31 +485,91 @@ class DBRunner(BaseClass):
 
         return stdin, stdout, stderr, is_successed
 
-    def collect_results(self, name: str, cpu: str='transaction-cpu-time-server-', 
+    def __transfer_report(self, machine: str, file_name: str, res_dir: str, is_delete_reports: bool) -> None:
+        self.__type_check(obj=machine, obj_type=str, obj_name='machine', is_allow_none=False)
+        self.__type_check(obj=file_name, obj_type=str, obj_name='file_name', is_allow_none=False)
+        self.__type_check(obj=res_dir, obj_type=str, obj_name='res_dir', is_allow_none=False)
+        self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
+        
+        # Transfer reports to the remote host
+        self.__ssh_exec_command(f"scp db-under@{machine}:{file_name} {os.path.join(res_dir, file_name)}", 
+                                going_msg=f"Transfering report '{file_name}'' to remote host...", 
+                                finished_msg=f"Transfered report '{file_name}' to remote host", 
+                                error_msg=f"Failed to transfer report '{file_name}' to remote host")
+
+        # Delete reports on the servers
+        if is_delete_reports:
+            self.__ssh_exec_command(f"ssh db-under@{machine} 'rm -f {file_name}'", 
+                                    going_msg=f"Deleting report '{file_name}' on servers...", 
+                                    finished_msg=f"Deleted seport '{file_name}' on servers", 
+                                    error_msg=f"Failed to delete report '{file_name}' on servers")
+
+    def collect_results(self, name: str, feature: str='transaction-features', 
+                        dependency: str='transaction-dependencies',
+                        cpu: str='transaction-cpu-time-server-', 
                         latency: str='transaction-latency-server-', 
-                        diskio: str='transaction-diskio-count-server-', format: str='csv', is_delete_reports: bool=False):
+                        diskio: str='transaction-diskio-count-server-', format: str='csv', is_delete_reports: bool=False) -> None:
+        """
+        Collect the reports on the servers and sequencer and transfer them to the host
+
+        :param str reports_path: The download path of the reports on the local host
+        :param str feature: The name of the transaction-features report
+        :param str dependency: The name of the transaction-dependencies report
+        :param str cpu: The name of the transaction-cpu-time reports
+        :param str latency: The name of the transaction-latency reports
+        :param str diskio: The name of the transaction-diskio-count reports
+        :param str format: The format of reports
+        :param bool is_delete_reports: Whether to delete the reports on the server and the sequencer
+        """
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
+        self.__type_check(obj=feature, obj_type=str, obj_name='feature', is_allow_none=False)
+        self.__type_check(obj=dependency, obj_type=str, obj_name='dependency', is_allow_none=False)
+        self.__type_check(obj=cpu, obj_type=str, obj_name='cpu', is_allow_none=False)
+        self.__type_check(obj=latency, obj_type=str, obj_name='latency', is_allow_none=False)
+        self.__type_check(obj=diskio, obj_type=str, obj_name='diskio', is_allow_none=False)
+        self.__type_check(obj=format, obj_type=str, obj_name='format', is_allow_none=False)
+        self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
+
+        # Create directory
+        res_dir = os.path.join(self.workspace, self.TEMP_DIR, name)
+        self.__ssh_exec_command(f"mkdir -p {res_dir}")
+
+        # For feature reports
+        file_name = f"{feature}.{format}"
+        self.__transfer_report(machine=self.sequencer, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
+
+        # For dependency reports
+        file_name = f"{dependency}.{format}"
+        self.__transfer_report(machine=self.sequencer, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
 
         # For each type of reports
         for file_dir, file_type in zip([self.CPU_DIR, self.LATENCY_DIR, self.DISK_DIR], [cpu, latency, diskio]):
-            res_dir = os.path.join(self.workspace, self.TEMP_DIR, name, file_dir)
-            self.__ssh_exec_command(f"mkdir -p {res_dir}")
-            # For each machine
+            # res_dir = os.path.join(self.workspace, self.TEMP_DIR, name, file_dir)
+            # self.__ssh_exec_command(f"mkdir -p {res_dir}")
+            # For each server machine
             for id, server in enumerate(self.servers):
                 file_name = f"{file_type}{id}.{format}"
                 # Transfer reports to the remote host
-                self.__ssh_exec_command(f"scp db-under@{server}:{file_name} {os.path.join(res_dir, file_name)}", 
-                                        going_msg=f"Transfering report '{file_name}'' to remote host...", 
-                                        finished_msg=f"Transfered report '{file_name}' to remote host", 
-                                        error_msg=f"Failed to transfer report '{file_name}' to remote host")
+                self.__transfer_report(machine=self.sequencer, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
                 # Delete reports on the servers
-                if is_delete_reports:
-                    self.__ssh_exec_command(f"ssh db-under@{server} 'rm -f {file_name}'", 
-                                            going_msg=f"Deleting report '{file_name}' on servers...", 
-                                            finished_msg=f"Deleted seport '{file_name}' on servers", 
-                                            error_msg=f"Failed to delete report '{file_name}' on servers")
+                # if is_delete_reports:
+                #     self.__ssh_exec_command(f"ssh db-under@{server} 'rm -f {file_name}'", 
+                #                             going_msg=f"Deleting report '{file_name}' on servers...", 
+                #                             finished_msg=f"Deleted seport '{file_name}' on servers", 
+                #                             error_msg=f"Failed to delete report '{file_name}' on servers")
 
-    def pull_reports_to_local(self, name: str, path: str, is_delete_reports: bool=False):
+    def pull_reports_to_local(self, name: str, path: str, is_delete_reports: bool=False) -> None:
+        """
+        Download the reports on the host to the local
+
+        :param str name: The directory name of the reports
+        :param str path: The download path on the local host
+        :param bool is_delete_reports: Whether to delete the reports on the remote host
+        """
+        self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
+        self.__type_check(obj=path, obj_type=str, obj_name='path', is_allow_none=False)
+        self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
+
         reports_dir = os.path.join(self.dbrunner_temp_path, name)
 
         self.__scp_get(remote_path=reports_dir, local_path=path, recursive=True, 
@@ -526,10 +587,10 @@ class DBRunner(BaseClass):
         """
         Run Benchmark
 
-        :param str reports_path: 
+        :param str reports_path: The download path of the reports on the local host
         :param dict alts: The modification would be applied to ``base_config``
         :param str base_config: The path of the load-config for Auto-Bencher and it would be modified by ``alts``
-        :param bool is_delete_reports:
+        :param bool is_delete_reports: Whether to delete the reports on the server, sequencer, and the remote host
         :return: A tupel contains the standard input/output/error stream after executing the command. 
         :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
