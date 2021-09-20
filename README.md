@@ -59,10 +59,10 @@ python -m unittest tests.test_all.TestSSH.test_put
 
 ### Example Code
 
-An example config, please refer to the [example_task_runner.py](./examples/example_task_runner.py)
+An example config, please refer to the [example_taskrunner.py](./examples/example_taskrunner.py)
 
 ```python
-from scalablerunner.task_runner import TaskRunner
+from scalablerunner.taskrunner import TaskRunner
 from time import sleep
 
 def test_run(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):
@@ -171,12 +171,12 @@ if __name__ == '__main__':
 
 ## DBRunner
 
-Please refer to the [example_db_runner.py](./examples/example_db_runner.py)
+Please refer to the [example_dbrunner.py](./examples/example_dbrunner.py)
 
 ```python
 import os
 
-from scalablerunner.db_runner import DBRunner
+from scalablerunner.dbrunner import DBRunner
 
 def get_temp_dir():
     # Create 'temp' directory
@@ -205,7 +205,7 @@ if __name__ == '__main__':
     SSH_DEFAULT_CMD_RETRY_COUT = 2
     SSH_DEFAULT_IS_RAISE_ERR = False
 
-    dr = DBRunner(workspace='db_runner_workspace_test')
+    dr = DBRunner()
     # Connect to the remote host, where Auto-Bencher loactes
     dr.connect(hostname=HOSTNAME, username=USERNAME, password=PASSWORD, port=PORT)
     dr = config_db_runner(dr)
