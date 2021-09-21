@@ -300,7 +300,7 @@ class SSH(BaseClass):
             for line in stderr:
                 output = output + line
             if output != "":
-                self.__error(f"An error occured while executing SSH remote command.")
+                self.__error(f"An error occured while executing SSH remote command: {command}")
                 if is_show_result:
                     print(output)
                 cmd_retry_counter += 1

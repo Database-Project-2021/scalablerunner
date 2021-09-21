@@ -317,6 +317,7 @@ class TestDBRunner(unittest.TestCase):
         except:
             self.__error(f"Fail to pass test_connect")
             traceback.print_exc()
+            raise BaseException(f"Failed to pass test_connect()")
 
     def test_upload_jars(self):
         try:
@@ -325,6 +326,7 @@ class TestDBRunner(unittest.TestCase):
         except:
             self.__error(f"Fail to pass test_upload_jars")
             traceback.print_exc()
+            raise BaseException(f"Failed to pass test_upload_jars()")
 
     def test_load(self):
         try:
@@ -334,6 +336,7 @@ class TestDBRunner(unittest.TestCase):
         except:
             self.__error(f"Fail to pass test_load()")
             traceback.print_exc()
+            raise BaseException(f"Failed to pass test_load()")
 
     def test_bench(self):
         try:
@@ -345,6 +348,7 @@ class TestDBRunner(unittest.TestCase):
         except:
             self.__error(f"Fail to pass test_bench()")
             traceback.print_exc()
+            raise BaseException(f"Failed to pass test_bench()")
 
 def suite():
     suite = unittest.TestSuite()

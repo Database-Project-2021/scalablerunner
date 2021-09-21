@@ -168,9 +168,9 @@ class DBRunner(BaseClass):
         :param str error_msg: The error message
         :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
-        
+        # Control 'default_cmd_retry_count' by this method
         res = self.__client_exec(fn_name='exec_command', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg, 
-                                 command=command, cmd_retry_count=self.default_cmd_retry_count)
+                                 command=command, cmd_retry_count=self.default_cmd_retry_count, get_pty=True)
         return res
 
     def __scp_put(self, files: str, remote_path: str, recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
@@ -186,6 +186,11 @@ class DBRunner(BaseClass):
                            remote_path=remote_path, local_path=local_path, recursive=recursive)
     
     def __set_workspace(self, workspace: str) -> None:
+        """
+        To handle customized workspace name, let the path of the configurations, temp folder, and auto-bencher become dynamic
+
+        :param str workspace: The name of DBRunner's workspace
+        """
         self.workspace = workspace
         self.dbrunner_autobencher_path = os.path.join(self.workspace, self.AUTOBENCHER_NAME)
         self.dbrunner_temp_path = os.path.join(self.workspace, self.TEMP_DIR)
@@ -194,7 +199,7 @@ class DBRunner(BaseClass):
         self.dbrunner_config_dir = os.path.join(self.workspace, self.AUTOBENCHER_NAME)
         self.dbrunner_bencher_config_path = os.path.join(self.dbrunner_config_dir, self.BENCHER_CONFIG)
         self.dbrunner_load_config_path = os.path.join(self.dbrunner_config_dir, self.LOAD_CONFIG)
-        self.dbrunner_bencher_config_path = os.path.join(self.dbrunner_config_dir, self.BENCH_CONFIG)
+        self.dbrunner_bench_config_path = os.path.join(self.dbrunner_config_dir, self.BENCH_CONFIG)
 
     def set_default_is_raise_err(self, default_is_raise_err: bool) -> 'DBRunner':
         """
@@ -203,6 +208,8 @@ class DBRunner(BaseClass):
         :param bool default_is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
             but the modification only affect to this function.
+        :return: The instance itself
+        :rtype: DBRunner
         """
         self.__type_check(obj=default_is_raise_err, obj_type=bool, obj_name='default_is_raise_err', is_allow_none=False)
 
@@ -214,6 +221,8 @@ class DBRunner(BaseClass):
         Set up default value of ``retry_count`` of each operation.
 
         :param int default_retry_count: Determine the default retry-count of the class SSH.
+        :return: The instance itself
+        :rtype: DBRunner
         """
         self.__type_check(obj=default_retry_count, obj_type=int, obj_name='default_retry_count', is_allow_none=False)
 
@@ -225,6 +234,8 @@ class DBRunner(BaseClass):
         Set up default value of ``cmd_retry_count`` of SSH remote command execution.
 
         :param int default_cmd_retry_count: Determine the default command-retry count of the each SSH remote command execution.
+        :return: The instance itself
+        :rtype: DBRunner
         """
         self.__type_check(obj=default_cmd_retry_count, obj_type=int, obj_name='default_cmd_retry_count', is_allow_none=False)
 
@@ -246,6 +257,7 @@ class DBRunner(BaseClass):
         self.port = int(port)
 
         self.host = SSH(hostname=self.hostname, username=self.username, password=self.password, port=self.port)
+        # Let SSH module control the 'default_is_raise_err' and 'default_retry_count'
         self.host.set_default_is_raise_err(default_is_raise_err=self.default_is_raise_err)
         self.host.set_default_retry_count(default_retry_count=self.default_retry_count)
         
@@ -387,7 +399,7 @@ class DBRunner(BaseClass):
         """
         # Upload bench.toml
         fl = self.__dump_toml(self.bench_config)
-        self.__scp_putfo(fl=fl, remote_path=self.dbrunner_bencher_config_path, 
+        self.__scp_putfo(fl=fl, remote_path=self.dbrunner_bench_config_path, 
                          going_msg=f"Uploading config 'bench.toml'...", 
                          finished_msg=f"Uploaded config 'bench.toml'", 
                          error_msg=f"Failed to upload config 'bench.toml'")
@@ -517,7 +529,7 @@ class DBRunner(BaseClass):
                        error_msg=f"Failed to pull reports '{name}' to local '{path}'")
 
         if is_delete_reports:
-            self.__ssh_exec_command(f"ssh db-under@{self.hostname} 'rm -rf {reports_dir}'", 
+            self.__ssh_exec_command(f"rm -rf {reports_dir}", 
                                     going_msg=f"Deleting reports '{reports_dir}' on host...", 
                                     finished_msg=f"Deleted reports '{reports_dir}' on host", 
                                     error_msg=f"Failed to delete reports '{reports_dir}' on host")
