@@ -270,6 +270,33 @@ class TestDBRunner(unittest.TestCase):
     SSH_DEFAULT_RETRY_COUT = 3
     SSH_DEFAULT_IS_RAISE_ERR = True
 
+    # Configurations
+    ELASQL_NAME = "elasql"
+    ELASQLBENCH_NAME = "elasqlbench"
+    INIT_RECORD_PER_PART_NAME = "org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.INIT_RECORD_PER_PART"
+    RW_TX_RATE_NAME = "org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.RW_TX_RATE"
+    ENABLE_COLLECTING_DATA_NAME = "org.elasql.perf.tpart.ai.Estimator.ENABLE_COLLECTING_DATA"
+
+    INIT_RECORD_PER_PART = "100000"
+    ENABLE_COLLECTING_DATA = "true"
+    RW_TX_RATE = "1"
+
+    ARGS_LOAD = {
+                    ELASQLBENCH_NAME: {
+                        INIT_RECORD_PER_PART_NAME: INIT_RECORD_PER_PART
+                    }
+                }
+
+    ARGS_BENCH = {
+                    ELASQL_NAME: {
+                        ENABLE_COLLECTING_DATA_NAME: ENABLE_COLLECTING_DATA
+                    },
+                    ELASQLBENCH_NAME: {
+                        INIT_RECORD_PER_PART_NAME: INIT_RECORD_PER_PART,
+                        RW_TX_RATE_NAME: RW_TX_RATE
+                    }
+                }
+
     def __info(self, *args, **kwargs) -> None:
         print(f"[Test DB Runner] Info: {info(*args, **kwargs)}")
 
@@ -332,7 +359,10 @@ class TestDBRunner(unittest.TestCase):
         try:
             self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
             for i in range(3):
-                self.dr.load(is_kill_java=True)
+                self.dr.load(alts=self.ARGS_LOAD, is_kill_java=True)
+
+            # Check configuration load.toml
+            assert self.dr.get_load_config(format=DBRunner.DICT)[self.ELASQLBENCH_NAME][self.INIT_RECORD_PER_PART_NAME] == self.INIT_RECORD_PER_PART
         except:
             self.__error(f"Fail to pass test_load()")
             traceback.print_exc()
@@ -341,10 +371,16 @@ class TestDBRunner(unittest.TestCase):
     def test_bench(self):
         try:
             self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
-            self.dr.load()
+            self.dr.load(alts=self.ARGS_LOAD, is_kill_java=True)
             for i in range(1):
-                self.dr.bench(reports_path=get_temp_dir(), is_pull_reports=True, is_delete_reports=True, 
+                self.dr.bench(reports_path=get_temp_dir(), alts=self.ARGS_BENCH, is_pull_reports=True, is_delete_reports=True, 
                               is_kill_java=True)
+
+            # Check configuration bench.toml
+            assert self.dr.get_bench_config(format=DBRunner.DICT)[self.ELASQLBENCH_NAME][self.INIT_RECORD_PER_PART_NAME] == self.INIT_RECORD_PER_PART
+            assert self.dr.get_bench_config(format=DBRunner.DICT)[self.ELASQLBENCH_NAME][self.RW_TX_RATE_NAME] == self.RW_TX_RATE
+            assert self.dr.get_bench_config(format=DBRunner.DICT)[self.ELASQL_NAME][self.ENABLE_COLLECTING_DATA_NAME] == self.ENABLE_COLLECTING_DATA
+
         except:
             self.__error(f"Fail to pass test_bench()")
             traceback.print_exc()

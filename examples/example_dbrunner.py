@@ -43,6 +43,21 @@ if __name__ == '__main__':
     # Upload .jar files
     dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
     # Load test bed
-    dr.load(is_kill_java=True)
+
+    ARGS_LOAD = {
+                    "elasqlbench": {
+                        "org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.INIT_RECORD_PER_PART": "100000"
+                    }
+                }
+    dr.load(alts=ARGS_LOAD, is_kill_java=True)
     # Benchmark
-    dr.bench(reports_path=get_temp_dir(), is_pull_reports=True, is_delete_reports=True, is_kill_java=True)
+    ARGS_BENCH = {
+                    "elasql": {
+                        "org.elasql.perf.tpart.ai.Estimator.ENABLE_COLLECTING_DATA": "true"
+                    },
+                    "elasqlbench": {
+                        "org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.INIT_RECORD_PER_PART": "100000",
+                        "org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.RW_TX_RATE": "1"
+                    }
+                }
+    dr.bench(reports_path=get_temp_dir(), alts=ARGS_BENCH, is_pull_reports=True, is_delete_reports=True, is_kill_java=True)

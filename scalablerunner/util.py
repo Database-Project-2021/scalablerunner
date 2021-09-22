@@ -1,6 +1,7 @@
 import logging
 import sys
 from typing import Collection, Type
+import collections.abc
 
 from pygments.console import colorize
 
@@ -114,7 +115,7 @@ def type_check(obj: object, obj_type: Type, obj_name: str, is_allow_none: bool) 
 
 def update(d: dict, u: dict) -> dict:
     for k, v in u.items():
-        if isinstance(v, Collection.abc.Mapping):
+        if isinstance(v, collections.abc.Mapping):
             d[k] = update(d.get(k, {}), v)
         else:
             d[k] = v

@@ -2,7 +2,7 @@
 import io
 import os
 import traceback
-from typing import Tuple
+from typing import Tuple, Union
 
 import toml
 
@@ -53,6 +53,10 @@ class DBRunner(BaseClass):
     BASE_BENCHER_CONFIG_PATH = os.path.join(BASE_CONFIGS_DIR, BENCHER_CONFIG)
     BASE_LOAD_CONFIG_PATH = os.path.join(BASE_CONFIGS_DIR, LOAD_CONFIG)
     BASE_BENCH_CONFIG_PATH = os.path.join(BASE_CONFIGS_DIR, BENCH_CONFIG)
+
+    # Get confiuration in format
+    DICT = 'dict'
+    TOML = 'toml'
 
     # Directory of configs on DB-Runner
     # DBRUNNER_CONFIG_DIR = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
@@ -404,6 +408,51 @@ class DBRunner(BaseClass):
                          finished_msg=f"Uploaded config 'bench.toml'", 
                          error_msg=f"Failed to upload config 'bench.toml'")
 
+    def get_bencher_config(self, format: str) -> Union[dict, str]:
+        """
+        Get the bencher.toml in dictionary or .toml format
+
+        :param str format: Specify the format, there 2 options: DBRunner.DICT or DBRunner.TOML
+        :return: The contents of the bencher.toml in dictionary or .toml format
+        :rtype: Union[dict, str]
+        """
+        self.__type_check(obj=format, obj_type=str, obj_name='format', is_allow_none=False)
+
+        if format == self.DICT:
+            return self.bencher_config
+        elif format == self.TOML:
+            return self.__dump_toml(self.bencher_config)
+
+    def get_load_config(self, format: str) -> Union[dict, str]:
+        """
+        Get the load.toml in dictionary or .toml format
+
+        :param str format: Specify the format, there 2 options: DBRunner.DICT or DBRunner.TOML
+        :return: The contents of the load.toml in dictionary or .toml format
+        :rtype: Union[dict, str]
+        """
+        self.__type_check(obj=format, obj_type=str, obj_name='format', is_allow_none=False)
+
+        if format == self.DICT:
+            return self.load_config
+        elif format == self.TOML:
+            return self.__dump_toml(self.load_config)
+
+    def get_bench_config(self, format: str) -> Union[dict, str]:
+        """
+        Get the bench.toml in dictionary or .toml format
+
+        :param str format: Specify the format, there 2 options: DBRunner.DICT or DBRunner.TOML
+        :return: The contents of the bench.toml in dictionary or .toml format
+        :rtype: Union[dict, str]
+        """
+        self.__type_check(obj=format, obj_type=str, obj_name='format', is_allow_none=False)
+
+        if format == self.DICT:
+            return self.bench_config
+        elif format == self.TOML:
+            return self.__dump_toml(self.bench_config)
+
     def init(self) -> Tuple:
         """
         Initialize ElaSQL and Auto-Bencher according to the settings that is set up with the method ``DBRunner.config_bencher``
@@ -415,18 +464,24 @@ class DBRunner(BaseClass):
             raise BaseException(f"Please call method config_bencher() to config bencher.toml at first.")
 
         # Install autobencher
-        self.__ssh_exec_command(f"rm -rf {self.workspace}; mkdir {self.workspace}; cd {self.workspace}; git clone {self.AUTOBENCHER_GITHUB}; cd {self.AUTOBENCHER_NAME}; npm install")
+        self.__ssh_exec_command(f"rm -rf {self.workspace}; mkdir {self.workspace}; cd {self.workspace}; git clone {self.AUTOBENCHER_GITHUB}; cd {self.AUTOBENCHER_NAME}; npm install",
+                                going_msg=f"Installing Auto-Bencher...", 
+                                finished_msg=f"Installed Auto-Bencher...", 
+                                error_msg=f"Failed to install Auto-Bencher")
 
         # Create JAR directory and create TEMP directory for storing reports temporarily
-        self.__ssh_exec_command(f"mkdir -p {self.dbrunner_temp_path}; mkdir -p {self.jar_dir}")
+        self.__ssh_exec_command(f"mkdir -p {self.dbrunner_temp_path}; mkdir -p {self.jar_dir}",
+                                going_msg=f"Creating diretories: {self.dbrunner_temp_path} and {self.jar_dir}...", 
+                                finished_msg=f"Created diretories: {self.dbrunner_temp_path} and {self.jar_dir}...", 
+                                error_msg=f"Failed to create diretories: {self.dbrunner_temp_path} and {self.jar_dir}")
 
         self.upload_bencher_config()
 
         # Init Auto-bencher
         stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} init', 
-                                                        going_msg=f"Initializing database...", 
-                                                        finished_msg=f"Initialized database", 
-                                                        error_msg=f"Failed to initialize database")
+                                                                      going_msg=f"Initializing database...", 
+                                                                      finished_msg=f"Initialized database", 
+                                                                      error_msg=f"Failed to initialize database")
         
         return stdin, stdout, stderr, is_successed
 
@@ -478,7 +533,7 @@ class DBRunner(BaseClass):
             self.load_config = self.__load_toml(base_config)
         # Apply adaptation
         if not (alts is None):
-            self.bench_config = update(self.bench_config, alts)
+            self.load_config = update(self.load_config, alts)
         # Apply cluster settings
         self.load_config = self.__update_cluster_config(self.load_config)
 
