@@ -645,7 +645,7 @@ class DBRunner(BaseClass):
                 #                             finished_msg=f"Deleted seport '{file_name}' on servers", 
                 #                             error_msg=f"Failed to delete report '{file_name}' on servers")
 
-    def move_stats(self, name: str, is_delete_reports: bool=False):
+    def move_stats(self, name: str, is_delete_reports: bool=False) -> None:
         """
         Move jobs-0 folder and files job-0-timeline.csv, throughput.csv... etc to the report's path of the DBRunner.
 
