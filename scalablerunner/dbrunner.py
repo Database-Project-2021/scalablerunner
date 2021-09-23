@@ -188,6 +188,10 @@ class DBRunner(BaseClass):
     def __scp_get(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
         self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
                            remote_path=remote_path, local_path=local_path, recursive=recursive)
+
+    def __large_put(self, files: str, remote_path: str, recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
+        self.__client_exec(fn_name='large_put', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
+                           files=files, remote_path=remote_path, recursive=recursive)
     
     def __set_workspace(self, workspace: str) -> None:
         """
@@ -486,23 +490,39 @@ class DBRunner(BaseClass):
         
         return stdin, stdout, stderr, is_successed
 
-    def upload_jars(self, server_jar: str, client_jar: str):
+    def upload_jars(self, server_jar: str, client_jar: str, use_stable: bool=False) -> None:
+        """
+        Upload server.jar and client.jar.
+
+        :param str server_jar: The path of the server.jar
+        :param str client_jar: The path of the client.jar
+        :param bool use_stable: Determine to use SCP or SFTP method to upload files. Generally, SCP method is faster but would occur EOF 
+            error sometimes while SFTP method would open a file on remote host and write the contents in binary, which is more stable but slower.
+        """
         if not self.is_config_cluster:
             raise BaseException(f"Please call method config_cluster() at first.")
-
-        # try:
-        #     self.__info(f"Uploading JARs...")
-        #     self.__scp_put(files=server_jar, remote_path=self.jar_dir)
-        #     self.__scp_put(files=client_jar, remote_path=self.jar_dir)
-        #     self.__info(f"Uploaded JARs...")
-        # except:
-        #     self.__error(f"Failed to upload JARs")
-        #     traceback.print_exc()
         
-        self.__scp_put(files=server_jar, remote_path=self.jar_dir, going_msg=f'Uploading server.jar', 
-                       finished_msg=f'Uploaded server.jar', error_msg=f'Failed to upload server.jar')
-        self.__scp_put(files=client_jar, remote_path=self.jar_dir, going_msg=f'Uploading client.jar', 
-                       finished_msg=f'Uploaded client.jar', error_msg=f'Failed to upload client.jar')
+        # Path of the .jar
+        remote_server_jar = os.path.join(self.jar_dir, self.SERVER_JAR_NAME)
+        remote_client_jar = os.path.join(self.jar_dir, self.CLIENT_JAR_NAME)
+
+        # Message function
+        def going_msg_fn(name):
+            return f'Uploading {name}'
+        def finished_msg_fn(name):
+            return f'Uploaded {name}'
+        def error_msg_fn(name):
+            return f'Failed to upload {name}'
+
+        # Switch between SCP and customized SFTP
+        if use_stable:
+            for jar, remote_jar, jar_name in zip([server_jar, client_jar], [remote_server_jar, remote_client_jar], [self.SERVER_JAR_NAME, self.CLIENT_JAR_NAME]):
+                self.__large_put(files=jar, remote_path=remote_jar, going_msg=going_msg_fn(jar_name), 
+                                 finished_msg=finished_msg_fn(jar_name), error_msg=error_msg_fn(jar_name))
+        else:
+            for jar, remote_jar, jar_name in zip([server_jar, client_jar], [remote_server_jar, remote_client_jar], [self.SERVER_JAR_NAME, self.CLIENT_JAR_NAME]):
+                self.__scp_put(files=jar, remote_path=remote_jar, going_msg=going_msg_fn(jar_name), 
+                               finished_msg=finished_msg_fn(jar_name), error_msg=error_msg_fn(jar_name))
 
     def __update_cluster_config(self, config: dict):
         if not config.get('auto_bencher', None) is None:

@@ -16,6 +16,7 @@ class RemoteType(Enum):
     SSH = auto()
     SCP = auto()
     SFTP = auto()
+    THIS = auto()
 
 class SSH(BaseClass):
     """
@@ -25,6 +26,10 @@ class SSH(BaseClass):
     RECONNECT_TIME_OUT = 20
     RECONNECT_COUNT = 1
     RECONNECT_WAITING = 0
+
+    # SCP settings
+    SCP_BUFFER_SIZE = pow(2, 22)
+    SCP_SOCKET_TIMEOUT = 60
 
     # Default functionalities
     DEFAULT_IS_RAISE_ERR = False
@@ -41,6 +46,8 @@ class SSH(BaseClass):
         :param str password: Used for password authentication; is also used for private key decryption if ``passphrase`` is not given.
         """
 
+        paramiko.sftp_file.SFTPFile.MAX_REQUEST_SIZE = pow(2, 22) # 4MB per chunk
+
         self.hostname = hostname
         self.username = username
         self.password = password
@@ -51,6 +58,7 @@ class SSH(BaseClass):
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.scpClient = None
+        self.sftpClient = None
         
         # Logger
         self.logger = self._set_UtilLogger(module='Runner', submodule='SSH', verbose=UtilLogger.INFO)
@@ -120,13 +128,17 @@ class SSH(BaseClass):
                 try:
                     if self.client.get_transport() is not None:
                         start_time = time.time()
-                        # While SCP isn't active and waiting time < 1 microsecond, keep waiting
+                        # While SCP isn't active and waiting time < 1 second, keep waiting
                         while (not self.client.get_transport().is_active()) and (time.time() - start_time < 1):
                             pass
                     if remote_type is RemoteType.SSH:
                         res = getattr(self.client, fn_name)(*args, **kargs)
                     elif remote_type is RemoteType.SCP:
                         res = getattr(self.scpClient, fn_name)(*args, **kargs)
+                    elif remote_type is RemoteType.SFTP:
+                        res = getattr(self.sftpClient, fn_name)(*args, **kargs)
+                    elif remote_type is RemoteType.THIS:
+                        res = getattr(self, fn_name)(*args, **kargs)
                     else:
                         raise ValueError(f"No such type of operation in 'RemoteType'")
                     is_successed = True
@@ -147,7 +159,7 @@ class SSH(BaseClass):
             else:
                 self.__error(f"FAILED - {name}")
                 if self.__process_is_raise_err(is_raise_err=is_raise_err):
-                    raise BaseException(f"Fail to execute command, even reconnect to the host")
+                    raise BaseException(f"Fail to execute the operation, even reconnect to the host")
             return res
 
     def __process_is_raise_err(self, is_raise_err: bool) -> bool:
@@ -216,8 +228,9 @@ class SSH(BaseClass):
         self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='connect', name=f"SSH connect to '{self.hostname}'", 
                                   retry_count=retry_count, is_raise_err=is_raise_err, 
                                   hostname=self.hostname, port=self.port, username=self.username, password=self.password, timeout=timeout)
-        # self.scpClient = SCPClient(self.client.get_transport(), progress=progress)
-        self.scpClient = SCPClient(self.client.get_transport(), progress4=progress4)
+        # self.scpClient = SCPClient(self.client.get_transport(), buff_size=self.SCP_BUFFER_SIZE, socket_timeout=self.SCP_SOCKET_TIMEOUT, progress=progress)
+        self.scpClient = SCPClient(self.client.get_transport(), buff_size=self.SCP_BUFFER_SIZE, socket_timeout=self.SCP_SOCKET_TIMEOUT, progress4=progress4)
+        self.sftpClient = self.client.open_sftp()
 
     def reconnect(self, timeout: int=20, retry_count: int=None, is_raise_err: bool=None) -> None:
         """
@@ -251,6 +264,10 @@ class SSH(BaseClass):
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
+        self.__retrying_execution(remote_type=RemoteType.SFTP, fn_name='close', name=f"SFTP closes the connecttion to '{self.hostname}'", 
+                                  retry_count=retry_count, is_raise_err=is_raise_err)
+        self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='close', name=f"SCP closes the connecttion to '{self.hostname}'", 
+                                  retry_count=retry_count, is_raise_err=is_raise_err)
         self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='close', name=f"SSH closes the connecttion to '{self.hostname}'", 
                                   retry_count=retry_count, is_raise_err=is_raise_err)
 
@@ -315,7 +332,7 @@ class SSH(BaseClass):
 
     def put(self, files: str, remote_path: str='.', recursive: bool=False, preserve_times: bool=False, retry_count: int=None, is_raise_err: int=None) -> None:
         """
-        Transfer files and directories to remote host. It's an wrapper of [paramiko.sftp_client.SFTPClient.put](http://docs.paramiko.org/en/stable/api/sftp.html#paramiko.sftp_client.SFTPClient.put)
+        Transfer files and directories to remote host. It's an wrapper of [scp.SCPClient.put](https://github.com/jbardin/scp.py/blob/master/scp.py#L151)
 
         :param str files: A single path, or a list of paths to be transferred. `recursive` must be True to transfer directories.
         :param str remote_path: path in which to receive the files on the remote host. defaults to '.'
@@ -341,7 +358,7 @@ class SSH(BaseClass):
 
     def putfo(self, fl, remote_path: str, mode: str='0644', size: int=None, retry_count: int=None, is_raise_err: int=None):
         """
-        Transfer file-like object to remote host. It's an wrapper of [paramiko.sftp_client.SFTPClient.putfo](http://docs.paramiko.org/en/stable/api/sftp.html#paramiko.sftp_client.SFTPClient.putfo)
+        Transfer file-like object to remote host. It's an wrapper of [scp.SCPClient.putfo](https://github.com/jbardin/scp.py/blob/master/scp.py#L189)
 
         :param file-like object fl: opened file or file-like object to copy
         :param str remote_path: full destination path
@@ -367,7 +384,7 @@ class SSH(BaseClass):
 
     def get(self, remote_path: str, local_path: str='', recursive: bool=False, preserve_times: bool=False, retry_count: int=None, is_raise_err: int=None):
         """
-        Transfer files and directories from remote host to localhost. It's an wrapper of [paramiko.sftp_client.SFTPClient.get](http://docs.paramiko.org/en/stable/api/sftp.html#paramiko.sftp_client.SFTPClient.get)
+        Transfer files and directories from remote host to localhost. It's an wrapper of [scp.SCPClient.get](https://github.com/jbardin/scp.py/blob/master/scp.py#L216)
 
         :param str remote_path: path to retrieve from remote host. since this is
             evaluated by scp on the remote host, shell wildcards and
@@ -393,3 +410,44 @@ class SSH(BaseClass):
         self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='get', name=f"SCP get files from '{remote_path}' to '{local_path}'", 
                                   retry_count=retry_count, is_raise_err=is_raise_err, 
                                   remote_path=remote_path, local_path=local_path, recursive=recursive, preserve_times=preserve_times)
+
+    def _custome_put(self, files: str, remote_path: str, recursive: bool) -> None:
+        """
+        Transfer the *single* file to remote host. Trandfer the ``files`` to the file of the ``remote_path`` on the host.
+        The recursive transmission is under construction.
+
+        :param str files: A single path, or a list of paths to be transferred. `recursive` must be True to transfer directories.
+        :param str remote_path: path in which to receive the files on the remote host. defaults to '.'
+        :param bool recursive: Transfer files and directories recursively
+        """
+        with self.sftpClient.file(remote_path, mode='w') as rem_file:
+            rem_file.MAX_REQUEST_SIZE = 1024
+            with open(files, 'rb') as f:
+                rem_file.write(f.read())        
+
+    def large_put(self, files: str, remote_path: str, recursive: bool=False, retry_count: int=None, is_raise_err: int=None) -> None:
+        """
+        Transfer the *single* file to remote host. Trandfer the ``files`` to the file of the ``remote_path`` on the host.
+        The recursive transmission is under construction.
+
+        :param str files: A single path, or a list of paths to be transferred. `recursive` must be True to transfer directories.
+        :param str remote_path: path in which to receive the files on the remote host. defaults to '.'
+        :param bool recursive: Transfer files and directories recursively
+        :param int retry_count: How many time of reconnection and redoing the command 
+            while an connection error occurs, like SSH tunnel disconect accidently, session not active...
+            If value is ``None``, use default retry-count.
+        :param bool is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
+            Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
+            but the modification only affect to this function.
+        :raises BaseException: if the connection hasn't been established yet
+        """
+        if self.sftpClient is None:
+            raise BaseException(f"Please establish a SSH connection at first.")
+        
+        self.__type_check(obj=recursive, obj_type=bool, obj_name='recursive', is_allow_none=False)
+        self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
+        self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
+
+        self.__retrying_execution(remote_type=RemoteType.THIS, fn_name='_custome_put', name=f"custome put files from '{files}' to '{remote_path}'", 
+                                retry_count=retry_count, is_raise_err=is_raise_err, 
+                                files=files, remote_path=remote_path, recursive=recursive)

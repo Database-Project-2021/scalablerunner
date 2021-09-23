@@ -141,11 +141,27 @@ class TestSSH(unittest.TestCase):
 
     def test_put(self):
         for i in range(self.TEST_LOOP_COUNT):
+            # server.jar
             self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3)
 
+            # bench.toml
+            # self.client.put(files='data/config/bench.toml', remote_path='./', recursive=False, preserve_times=False, retry_count=3)
+
+            # jars.zip
+            # self.client.put(files='data/jars/jars.zip', remote_path='./', recursive=False, preserve_times=False, retry_count=3)
+
         for i in range(self.TEST_LOOP_COUNT // 2):
-            self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
-            self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
+            # server.jar
+            # self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
+            # self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
+
+            # bench.toml
+            self.client.put(files='data/config/bench.toml', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
+            self.client.put(files='data/config/bench.toml', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
+
+            # jars.zip
+            # self.client.put(files='data/jars/jars.zip', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
+            # self.client.put(files='data/jars/jars.zip', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
 
     def test_putfo(self):
         # Test file
@@ -156,6 +172,30 @@ class TestSSH(unittest.TestCase):
         for i in range(self.TEST_LOOP_COUNT // 2):
             self.client.putfo(fl=test_file, remote_path='./test.txt', retry_count=3, is_raise_err=False)
             self.client.putfo(fl=test_file, remote_path='./test.txt', retry_count=3, is_raise_err=True)
+
+    def test_large_put(self):
+        for i in range(self.TEST_LOOP_COUNT):
+            # server.jar
+            self.client.large_put(files='data/jars/server.jar', remote_path='./server.jar', recursive=False, retry_count=3)
+
+            # bench.toml
+            # self.client.put(files='data/config/bench.toml', remote_path='./bench.toml', recursive=False, retry_count=3)
+
+            # jars.zip
+            # self.client.put(files='data/jars/jars.zip', remote_path='./jars.zip', recursive=False, retry_count=3)
+
+        for i in range(self.TEST_LOOP_COUNT // 2):
+            # server.jar
+            # self.client.put(files='data/jars/server.jar', remote_path='./server.jar', recursive=False, retry_count=3, is_raise_err=False)
+            # self.client.put(files='data/jars/server.jar', remote_path='./server.jar', recursive=False, retry_count=3, is_raise_err=True)
+
+            # bench.toml
+            self.client.put(files='data/config/bench.toml', remote_path='./bench.toml', recursive=False, retry_count=3, is_raise_err=False)
+            self.client.put(files='data/config/bench.toml', remote_path='./bench.toml', recursive=False, retry_count=3, is_raise_err=True)
+
+            # jars.zip
+            # self.client.put(files='data/jars/jars.zip', remote_path='./jars.zip', recursive=False, retry_count=3, is_raise_err=False)
+            # self.client.put(files='data/jars/jars.zip', remote_path='./jars.zip', recursive=False, retry_count=3, is_raise_err=True)
 
     def test_get(self):
         for i in range(self.TEST_LOOP_COUNT):
@@ -271,12 +311,15 @@ class TestDBRunner(unittest.TestCase):
     SSH_DEFAULT_IS_RAISE_ERR = True
 
     # Configurations
+    VANILLABENCH_NAME = "vanillabench"
     ELASQL_NAME = "elasql"
     ELASQLBENCH_NAME = "elasqlbench"
+    BENCHMARK_INTERVAL_NAME = "org.vanilladb.bench.BenchmarkerParameters.BENCHMARK_INTERVAL"
     INIT_RECORD_PER_PART_NAME = "org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.INIT_RECORD_PER_PART"
     RW_TX_RATE_NAME = "org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.RW_TX_RATE"
     ENABLE_COLLECTING_DATA_NAME = "org.elasql.perf.tpart.ai.Estimator.ENABLE_COLLECTING_DATA"
 
+    BENCHMARK_INTERVAL = "30000"
     INIT_RECORD_PER_PART = "100000"
     ENABLE_COLLECTING_DATA = "true"
     RW_TX_RATE = "1"
@@ -288,6 +331,9 @@ class TestDBRunner(unittest.TestCase):
                 }
 
     ARGS_BENCH = {
+                    VANILLABENCH_NAME: {
+                        BENCHMARK_INTERVAL_NAME: BENCHMARK_INTERVAL
+                    },
                     ELASQL_NAME: {
                         ENABLE_COLLECTING_DATA_NAME: ENABLE_COLLECTING_DATA
                     },
@@ -350,6 +396,7 @@ class TestDBRunner(unittest.TestCase):
         try:
             for i in range(10):
                 self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
+                self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar', use_stable=True)
         except:
             self.__error(f"Fail to pass test_upload_jars")
             traceback.print_exc()
@@ -367,6 +414,14 @@ class TestDBRunner(unittest.TestCase):
             self.__error(f"Fail to pass test_load()")
             traceback.print_exc()
             raise BaseException(f"Failed to pass test_load()")
+
+    # def test_pull_reports_to_local(self):
+    #     try:
+    #         self.dr.pull_reports_to_local(name="db_runner_workspace_test/auto-bencher/parameters", path=get_temp_dir(), is_delete_reports=False)
+    #     except:
+    #         self.__error(f"Fail to pass test_pull_reports_to_local()")
+    #         traceback.print_exc()
+    #         raise BaseException(f"Failed to pass test_pull_reports_to_local()")
 
     def test_bench(self):
         try:
