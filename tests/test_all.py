@@ -423,6 +423,14 @@ class TestDBRunner(unittest.TestCase):
     #         traceback.print_exc()
     #         raise BaseException(f"Failed to pass test_pull_reports_to_local()")
 
+    # def test_move_stats(self):
+    #     try:
+    #         self.dr.move_stats(name=DBRunner.REPORTS_ON_HOST_DIR)
+    #     except:
+    #         self.__error(f"Fail to pass test_move_stats()")
+    #         traceback.print_exc()
+    #         raise BaseException(f"Failed to pass test_move_stats()")
+
     def test_bench(self):
         try:
             self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
@@ -430,6 +438,9 @@ class TestDBRunner(unittest.TestCase):
             for i in range(1):
                 self.dr.bench(reports_path=get_temp_dir(), alts=self.ARGS_BENCH, is_pull_reports=True, is_delete_reports=True, 
                               is_kill_java=True)
+
+            self.dr.bench(reports_path=get_temp_dir(), alts=self.ARGS_BENCH, is_pull_reports=False, is_delete_reports=False, 
+                          is_kill_java=True)
 
             # Check configuration bench.toml
             assert self.dr.get_bench_config(format=DBRunner.DICT)[self.ELASQLBENCH_NAME][self.INIT_RECORD_PER_PART_NAME] == self.INIT_RECORD_PER_PART

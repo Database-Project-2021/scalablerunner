@@ -645,6 +645,38 @@ class DBRunner(BaseClass):
                 #                             finished_msg=f"Deleted seport '{file_name}' on servers", 
                 #                             error_msg=f"Failed to delete report '{file_name}' on servers")
 
+    def move_stats(self, name: str, is_delete_reports: bool=False):
+        """
+        Move jobs-0 folder and files job-0-timeline.csv, throughput.csv... etc to the report's path of the DBRunner.
+
+        :param str name: The directory name of the reports
+        :param bool is_delete_reports: Whether to delete the reports on the remote host
+        """
+        self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
+        self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
+
+        autobener_reports_dir = os.path.join(self.dbrunner_autobencher_path, 'reports')
+        reports_dir = os.path.join(self.dbrunner_temp_path, name)
+        stats_reports_dir = os.path.join(reports_dir, 'stats')
+
+        if is_delete_reports:
+            operation = "mv $path/$latest_date/$latest_time $new_name;"
+        else:
+            operation = "cp -r $path/$latest_date/$latest_time $target; mv $target/$latest_time $new_name;"
+
+        cmd = "path='" + autobener_reports_dir + "'; \
+              target='" + reports_dir + "'; \
+              new_name='" + stats_reports_dir + "'; \
+              latest_date=`ls -t ${path} | head -1`; echo $latest_date; \
+              latest_time=`ls -t ${path}/${latest_date} | head -1`; echo $latest_time; \
+              mkdir -p $target; " + operation
+        
+        self.__ssh_exec_command(cmd, 
+                                going_msg=f"Moving stats '{reports_dir}' on host...", 
+                                finished_msg=f"Moved stats '{reports_dir}' on host", 
+                                error_msg=f"Failed to move stats '{reports_dir}' on host")
+
+
     def pull_reports_to_local(self, name: str, path: str, is_delete_reports: bool=False) -> None:
         """
         Download the reports on the host to the local
@@ -699,13 +731,14 @@ class DBRunner(BaseClass):
 
         # Run benchmark
         stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} benchmark -d {self.DB_NAME} -p {self.BENCH_CONFIG}', 
-                                                        going_msg=f"Benchmarking...", 
-                                                        finished_msg=f"Benchmarked", 
-                                                        error_msg=f"Failed to benchmark")
+                                                                      going_msg=f"Benchmarking...", 
+                                                                      finished_msg=f"Benchmarked", 
+                                                                      error_msg=f"Failed to benchmark")
 
         # Collect reports
         if is_pull_reports:
             self.collect_results(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
+            self.move_stats(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
             self.pull_reports_to_local(name=self.REPORTS_ON_HOST_DIR, path=reports_path, is_delete_reports=is_delete_reports)
             
         # Kill JAVA processes
