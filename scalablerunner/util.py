@@ -1,6 +1,7 @@
 import logging
 import sys
 from typing import Collection, Type
+import collections.abc
 
 from pygments.console import colorize
 
@@ -114,7 +115,7 @@ def type_check(obj: object, obj_type: Type, obj_name: str, is_allow_none: bool) 
 
 def update(d: dict, u: dict) -> dict:
     for k, v in u.items():
-        if isinstance(v, Collection.abc.Mapping):
+        if isinstance(v, collections.abc.Mapping):
             d[k] = update(d.get(k, {}), v)
         else:
             d[k] = v
@@ -145,28 +146,3 @@ class BaseClass():
 
     def _type_check(self, *args, **kwargs) -> None:
         type_check(*args, **kwargs)
-
-# def run(fn):
-#     fn(files='/home/weidagogo/sychou/db/DBRunner/jars/server.jar', remote_path='/home/db-under/db_runner_workspace/auto-bencher/jars/latest/')
-
-# def testing():
-#     ip = "140.114.85.15"
-#     username = "db-under"
-#     password = "db-under"
-
-#     client = paramiko.SSHClient()
-#     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-#     client.connect(hostname=ip, username=username, password=password)
-#     scpClient = SCPClient(client.get_transport(), progress4=progress4)
-#     fn = scpClient.put
-#     for i in range(10):
-#         try:
-#             # scpClient.put(files='/home/weidagogo/sychou/db/DBRunner/jars/server.jar', remote_path='/home/db-under/db_runner_workspace/auto-bencher/jars/latest/')
-#             run(fn)
-#             print(f"Testing Success: {info('Upload Success')}")
-#         except:
-#             print(f"Testing Error: {error('Upload Failed')}")
-#             client.close()
-#             client.connect(hostname=ip, username=username, password=password)
-#             scpClient = SCPClient(client.get_transport(), progress4=progress4)
-#             print(f"Testing Warning: {warning('Reconnected')}")

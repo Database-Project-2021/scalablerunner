@@ -2,7 +2,7 @@
 import io
 import os
 import traceback
-from typing import Tuple
+from typing import Tuple, Union
 
 import toml
 
@@ -58,6 +58,10 @@ class DBRunner(BaseClass):
     BASE_BENCHER_CONFIG_PATH = os.path.join(BASE_CONFIGS_DIR, BENCHER_CONFIG)
     BASE_LOAD_CONFIG_PATH = os.path.join(BASE_CONFIGS_DIR, LOAD_CONFIG)
     BASE_BENCH_CONFIG_PATH = os.path.join(BASE_CONFIGS_DIR, BENCH_CONFIG)
+
+    # Get confiuration in format
+    DICT = 'dict'
+    TOML = 'toml'
 
     # Directory of configs on DB-Runner
     # DBRUNNER_CONFIG_DIR = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
@@ -174,9 +178,9 @@ class DBRunner(BaseClass):
         :param str error_msg: The error message
         :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
-        
+        # Control 'default_cmd_retry_count' by this method
         res = self.__client_exec(fn_name='exec_command', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg, 
-                                 command=command, cmd_retry_count=self.default_cmd_retry_count)
+                                 command=command, cmd_retry_count=self.default_cmd_retry_count, get_pty=True)
         return res
 
     def __scp_put(self, files: str, remote_path: str, recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
@@ -190,8 +194,17 @@ class DBRunner(BaseClass):
     def __scp_get(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
         self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
                            remote_path=remote_path, local_path=local_path, recursive=recursive)
+
+    def __large_put(self, files: str, remote_path: str, recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
+        self.__client_exec(fn_name='large_put', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
+                           files=files, remote_path=remote_path, recursive=recursive)
     
     def __set_workspace(self, workspace: str) -> None:
+        """
+        To handle customized workspace name, let the path of the configurations, temp folder, and auto-bencher become dynamic
+
+        :param str workspace: The name of DBRunner's workspace
+        """
         self.workspace = workspace
         self.dbrunner_autobencher_path = os.path.join(self.workspace, self.AUTOBENCHER_NAME)
         self.dbrunner_temp_path = os.path.join(self.workspace, self.TEMP_DIR)
@@ -200,7 +213,7 @@ class DBRunner(BaseClass):
         self.dbrunner_config_dir = os.path.join(self.workspace, self.AUTOBENCHER_NAME)
         self.dbrunner_bencher_config_path = os.path.join(self.dbrunner_config_dir, self.BENCHER_CONFIG)
         self.dbrunner_load_config_path = os.path.join(self.dbrunner_config_dir, self.LOAD_CONFIG)
-        self.dbrunner_bencher_config_path = os.path.join(self.dbrunner_config_dir, self.BENCH_CONFIG)
+        self.dbrunner_bench_config_path = os.path.join(self.dbrunner_config_dir, self.BENCH_CONFIG)
 
     def set_default_is_raise_err(self, default_is_raise_err: bool) -> 'DBRunner':
         """
@@ -209,6 +222,8 @@ class DBRunner(BaseClass):
         :param bool default_is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
             but the modification only affect to this function.
+        :return: The instance itself
+        :rtype: DBRunner
         """
         self.__type_check(obj=default_is_raise_err, obj_type=bool, obj_name='default_is_raise_err', is_allow_none=False)
 
@@ -220,6 +235,8 @@ class DBRunner(BaseClass):
         Set up default value of ``retry_count`` of each operation.
 
         :param int default_retry_count: Determine the default retry-count of the class SSH.
+        :return: The instance itself
+        :rtype: DBRunner
         """
         self.__type_check(obj=default_retry_count, obj_type=int, obj_name='default_retry_count', is_allow_none=False)
 
@@ -231,6 +248,8 @@ class DBRunner(BaseClass):
         Set up default value of ``cmd_retry_count`` of SSH remote command execution.
 
         :param int default_cmd_retry_count: Determine the default command-retry count of the each SSH remote command execution.
+        :return: The instance itself
+        :rtype: DBRunner
         """
         self.__type_check(obj=default_cmd_retry_count, obj_type=int, obj_name='default_cmd_retry_count', is_allow_none=False)
 
@@ -252,6 +271,7 @@ class DBRunner(BaseClass):
         self.port = int(port)
 
         self.host = SSH(hostname=self.hostname, username=self.username, password=self.password, port=self.port)
+        # Let SSH module control the 'default_is_raise_err' and 'default_retry_count'
         self.host.set_default_is_raise_err(default_is_raise_err=self.default_is_raise_err)
         self.host.set_default_retry_count(default_retry_count=self.default_retry_count)
         
@@ -305,6 +325,7 @@ class DBRunner(BaseClass):
         else:
             self.servers = self.bencher_config['machines']['servers']
         if not (sequencer is None):
+            self.sequencer = sequencer
             self.bencher_config['machines']['sequencer'] = sequencer
         if not (clients is None):
             self.bencher_config['machines']['clients'] = clients
@@ -399,10 +420,55 @@ class DBRunner(BaseClass):
         """
         # Upload bench.toml
         fl = self.__dump_toml(self.bench_config)
-        self.__scp_putfo(fl=fl, remote_path=self.dbrunner_bencher_config_path, 
+        self.__scp_putfo(fl=fl, remote_path=self.dbrunner_bench_config_path, 
                          going_msg=f"Uploading config 'bench.toml'...", 
                          finished_msg=f"Uploaded config 'bench.toml'", 
                          error_msg=f"Failed to upload config 'bench.toml'")
+
+    def get_bencher_config(self, format: str) -> Union[dict, str]:
+        """
+        Get the bencher.toml in dictionary or .toml format
+
+        :param str format: Specify the format, there 2 options: DBRunner.DICT or DBRunner.TOML
+        :return: The contents of the bencher.toml in dictionary or .toml format
+        :rtype: Union[dict, str]
+        """
+        self.__type_check(obj=format, obj_type=str, obj_name='format', is_allow_none=False)
+
+        if format == self.DICT:
+            return self.bencher_config
+        elif format == self.TOML:
+            return self.__dump_toml(self.bencher_config)
+
+    def get_load_config(self, format: str) -> Union[dict, str]:
+        """
+        Get the load.toml in dictionary or .toml format
+
+        :param str format: Specify the format, there 2 options: DBRunner.DICT or DBRunner.TOML
+        :return: The contents of the load.toml in dictionary or .toml format
+        :rtype: Union[dict, str]
+        """
+        self.__type_check(obj=format, obj_type=str, obj_name='format', is_allow_none=False)
+
+        if format == self.DICT:
+            return self.load_config
+        elif format == self.TOML:
+            return self.__dump_toml(self.load_config)
+
+    def get_bench_config(self, format: str) -> Union[dict, str]:
+        """
+        Get the bench.toml in dictionary or .toml format
+
+        :param str format: Specify the format, there 2 options: DBRunner.DICT or DBRunner.TOML
+        :return: The contents of the bench.toml in dictionary or .toml format
+        :rtype: Union[dict, str]
+        """
+        self.__type_check(obj=format, obj_type=str, obj_name='format', is_allow_none=False)
+
+        if format == self.DICT:
+            return self.bench_config
+        elif format == self.TOML:
+            return self.__dump_toml(self.bench_config)
 
     def init(self) -> Tuple:
         """
@@ -415,38 +481,60 @@ class DBRunner(BaseClass):
             raise BaseException(f"Please call method config_bencher() to config bencher.toml at first.")
 
         # Install autobencher
-        self.__ssh_exec_command(f"rm -rf {self.workspace}; mkdir {self.workspace}; cd {self.workspace}; git clone {self.AUTOBENCHER_GITHUB}; cd {self.AUTOBENCHER_NAME}; npm install")
+        self.__ssh_exec_command(f"rm -rf {self.workspace}; mkdir {self.workspace}; cd {self.workspace}; git clone {self.AUTOBENCHER_GITHUB}; cd {self.AUTOBENCHER_NAME}; npm install",
+                                going_msg=f"Installing Auto-Bencher...", 
+                                finished_msg=f"Installed Auto-Bencher...", 
+                                error_msg=f"Failed to install Auto-Bencher")
 
         # Create JAR directory and create TEMP directory for storing reports temporarily
-        self.__ssh_exec_command(f"mkdir -p {self.dbrunner_temp_path}; mkdir -p {self.jar_dir}")
+        self.__ssh_exec_command(f"mkdir -p {self.dbrunner_temp_path}; mkdir -p {self.jar_dir}",
+                                going_msg=f"Creating diretories: {self.dbrunner_temp_path} and {self.jar_dir}...", 
+                                finished_msg=f"Created diretories: {self.dbrunner_temp_path} and {self.jar_dir}...", 
+                                error_msg=f"Failed to create diretories: {self.dbrunner_temp_path} and {self.jar_dir}")
 
         self.upload_bencher_config()
 
         # Init Auto-bencher
         stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} init', 
-                                                        going_msg=f"Initializing database...", 
-                                                        finished_msg=f"Initialized database", 
-                                                        error_msg=f"Failed to initialize database")
+                                                                      going_msg=f"Initializing database...", 
+                                                                      finished_msg=f"Initialized database", 
+                                                                      error_msg=f"Failed to initialize database")
         
         return stdin, stdout, stderr, is_successed
 
-    def upload_jars(self, server_jar: str, client_jar: str):
+    def upload_jars(self, server_jar: str, client_jar: str, use_stable: bool=False) -> None:
+        """
+        Upload server.jar and client.jar.
+
+        :param str server_jar: The path of the server.jar
+        :param str client_jar: The path of the client.jar
+        :param bool use_stable: Determine to use SCP or SFTP method to upload files. Generally, SCP method is faster but would occur EOF 
+            error sometimes while SFTP method would open a file on remote host and write the contents in binary, which is more stable but slower.
+        """
         if not self.is_config_cluster:
             raise BaseException(f"Please call method config_cluster() at first.")
-
-        # try:
-        #     self.__info(f"Uploading JARs...")
-        #     self.__scp_put(files=server_jar, remote_path=self.jar_dir)
-        #     self.__scp_put(files=client_jar, remote_path=self.jar_dir)
-        #     self.__info(f"Uploaded JARs...")
-        # except:
-        #     self.__error(f"Failed to upload JARs")
-        #     traceback.print_exc()
         
-        self.__scp_put(files=server_jar, remote_path=self.jar_dir, going_msg=f'Uploading server.jar', 
-                       finished_msg=f'Uploaded server.jar', error_msg=f'Failed to upload server.jar')
-        self.__scp_put(files=client_jar, remote_path=self.jar_dir, going_msg=f'Uploading client.jar', 
-                       finished_msg=f'Uploaded client.jar', error_msg=f'Failed to upload client.jar')
+        # Path of the .jar
+        remote_server_jar = os.path.join(self.jar_dir, self.SERVER_JAR_NAME)
+        remote_client_jar = os.path.join(self.jar_dir, self.CLIENT_JAR_NAME)
+
+        # Message function
+        def going_msg_fn(name):
+            return f'Uploading {name}'
+        def finished_msg_fn(name):
+            return f'Uploaded {name}'
+        def error_msg_fn(name):
+            return f'Failed to upload {name}'
+
+        # Switch between SCP and customized SFTP
+        if use_stable:
+            for jar, remote_jar, jar_name in zip([server_jar, client_jar], [remote_server_jar, remote_client_jar], [self.SERVER_JAR_NAME, self.CLIENT_JAR_NAME]):
+                self.__large_put(files=jar, remote_path=remote_jar, going_msg=going_msg_fn(jar_name), 
+                                 finished_msg=finished_msg_fn(jar_name), error_msg=error_msg_fn(jar_name))
+        else:
+            for jar, remote_jar, jar_name in zip([server_jar, client_jar], [remote_server_jar, remote_client_jar], [self.SERVER_JAR_NAME, self.CLIENT_JAR_NAME]):
+                self.__scp_put(files=jar, remote_path=remote_jar, going_msg=going_msg_fn(jar_name), 
+                               finished_msg=finished_msg_fn(jar_name), error_msg=error_msg_fn(jar_name))
 
     def upload_jdk(self, autobencher_jdk: str) -> Tuple:
         """
@@ -492,7 +580,7 @@ class DBRunner(BaseClass):
             self.load_config = self.__load_toml(base_config)
         # Apply adaptation
         if not (alts is None):
-            self.bench_config = update(self.bench_config, alts)
+            self.load_config = update(self.load_config, alts)
         # Apply cluster settings
         self.load_config = self.__update_cluster_config(self.load_config)
 
@@ -510,31 +598,123 @@ class DBRunner(BaseClass):
 
         return stdin, stdout, stderr, is_successed
 
-    def collect_results(self, name: str, cpu: str='transaction-cpu-time-server-', 
+    def __transfer_report(self, machine: str, file_name: str, res_dir: str, is_delete_reports: bool) -> None:
+        self.__type_check(obj=machine, obj_type=str, obj_name='machine', is_allow_none=False)
+        self.__type_check(obj=file_name, obj_type=str, obj_name='file_name', is_allow_none=False)
+        self.__type_check(obj=res_dir, obj_type=str, obj_name='res_dir', is_allow_none=False)
+        self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
+        
+        # Transfer reports to the remote host
+        self.__ssh_exec_command(f"scp db-under@{machine}:{file_name} {os.path.join(res_dir, file_name)}", 
+                                going_msg=f"Transfering report '{file_name}'' to remote host...", 
+                                finished_msg=f"Transfered report '{file_name}' to remote host", 
+                                error_msg=f"Failed to transfer report '{file_name}' to remote host")
+
+        # Delete reports on the servers
+        if is_delete_reports:
+            self.__ssh_exec_command(f"ssh db-under@{machine} 'rm -f {file_name}'", 
+                                    going_msg=f"Deleting report '{file_name}' on servers...", 
+                                    finished_msg=f"Deleted seport '{file_name}' on servers", 
+                                    error_msg=f"Failed to delete report '{file_name}' on servers")
+
+    def collect_results(self, name: str, feature: str='transaction-features', 
+                        dependency: str='transaction-dependencies',
+                        cpu: str='transaction-cpu-time-server-', 
                         latency: str='transaction-latency-server-', 
-                        diskio: str='transaction-diskio-count-server-', format: str='csv', is_delete_reports: bool=False):
+                        diskio: str='transaction-diskio-count-server-', format: str='csv', is_delete_reports: bool=False) -> None:
+        """
+        Collect the reports on the servers and sequencer and transfer them to the host
+
+        :param str reports_path: The download path of the reports on the local host
+        :param str feature: The name of the transaction-features report
+        :param str dependency: The name of the transaction-dependencies report
+        :param str cpu: The name of the transaction-cpu-time reports
+        :param str latency: The name of the transaction-latency reports
+        :param str diskio: The name of the transaction-diskio-count reports
+        :param str format: The format of reports
+        :param bool is_delete_reports: Whether to delete the reports on the server and the sequencer
+        """
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
+        self.__type_check(obj=feature, obj_type=str, obj_name='feature', is_allow_none=False)
+        self.__type_check(obj=dependency, obj_type=str, obj_name='dependency', is_allow_none=False)
+        self.__type_check(obj=cpu, obj_type=str, obj_name='cpu', is_allow_none=False)
+        self.__type_check(obj=latency, obj_type=str, obj_name='latency', is_allow_none=False)
+        self.__type_check(obj=diskio, obj_type=str, obj_name='diskio', is_allow_none=False)
+        self.__type_check(obj=format, obj_type=str, obj_name='format', is_allow_none=False)
+        self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
+
+        # Create directory
+        res_dir = os.path.join(self.workspace, self.TEMP_DIR, name)
+        self.__ssh_exec_command(f"mkdir -p {res_dir}")
+
+        # For feature reports
+        file_name = f"{feature}.{format}"
+        self.__transfer_report(machine=self.sequencer, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
+
+        # For dependency reports
+        file_name = f"{dependency}.{format}"
+        self.__transfer_report(machine=self.sequencer, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
 
         # For each type of reports
         for file_dir, file_type in zip([self.CPU_DIR, self.LATENCY_DIR, self.DISK_DIR], [cpu, latency, diskio]):
-            res_dir = os.path.join(self.workspace, self.TEMP_DIR, name, file_dir)
-            self.__ssh_exec_command(f"mkdir -p {res_dir}")
-            # For each machine
+            # res_dir = os.path.join(self.workspace, self.TEMP_DIR, name, file_dir)
+            # self.__ssh_exec_command(f"mkdir -p {res_dir}")
+            # For each server machine
             for id, server in enumerate(self.servers):
                 file_name = f"{file_type}{id}.{format}"
                 # Transfer reports to the remote host
-                self.__ssh_exec_command(f"scp db-under@{server}:{file_name} {os.path.join(res_dir, file_name)}", 
-                                        going_msg=f"Transfering report '{file_name}'' to remote host...", 
-                                        finished_msg=f"Transfered report '{file_name}' to remote host", 
-                                        error_msg=f"Failed to transfer report '{file_name}' to remote host")
+                self.__transfer_report(machine=server, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
                 # Delete reports on the servers
-                if is_delete_reports:
-                    self.__ssh_exec_command(f"ssh db-under@{server} 'rm -f {file_name}'", 
-                                            going_msg=f"Deleting report '{file_name}' on servers...", 
-                                            finished_msg=f"Deleted seport '{file_name}' on servers", 
-                                            error_msg=f"Failed to delete report '{file_name}' on servers")
+                # if is_delete_reports:
+                #     self.__ssh_exec_command(f"ssh db-under@{server} 'rm -f {file_name}'", 
+                #                             going_msg=f"Deleting report '{file_name}' on servers...", 
+                #                             finished_msg=f"Deleted seport '{file_name}' on servers", 
+                #                             error_msg=f"Failed to delete report '{file_name}' on servers")
 
-    def pull_reports_to_local(self, name: str, path: str, is_delete_reports: bool=False):
+    def move_stats(self, name: str, is_delete_reports: bool=False) -> None:
+        """
+        Move jobs-0 folder and files job-0-timeline.csv, throughput.csv... etc to the report's path of the DBRunner.
+
+        :param str name: The directory name of the reports
+        :param bool is_delete_reports: Whether to delete the reports on the remote host
+        """
+        self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
+        self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
+
+        autobener_reports_dir = os.path.join(self.dbrunner_autobencher_path, 'reports')
+        reports_dir = os.path.join(self.dbrunner_temp_path, name)
+        stats_reports_dir = os.path.join(reports_dir, 'stats')
+
+        if is_delete_reports:
+            operation = "mv $path/$latest_date/$latest_time $new_name;"
+        else:
+            operation = "cp -r $path/$latest_date/$latest_time $target; mv $target/$latest_time $new_name;"
+
+        cmd = "path='" + autobener_reports_dir + "'; \
+              target='" + reports_dir + "'; \
+              new_name='" + stats_reports_dir + "'; \
+              latest_date=`ls -t ${path} | head -1`; echo $latest_date; \
+              latest_time=`ls -t ${path}/${latest_date} | head -1`; echo $latest_time; \
+              mkdir -p $target; " + operation
+        
+        self.__ssh_exec_command(cmd, 
+                                going_msg=f"Moving stats '{reports_dir}' on host...", 
+                                finished_msg=f"Moved stats '{reports_dir}' on host", 
+                                error_msg=f"Failed to move stats '{reports_dir}' on host")
+
+
+    def pull_reports_to_local(self, name: str, path: str, is_delete_reports: bool=False) -> None:
+        """
+        Download the reports on the host to the local
+
+        :param str name: The directory name of the reports
+        :param str path: The download path on the local host
+        :param bool is_delete_reports: Whether to delete the reports on the remote host
+        """
+        self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
+        self.__type_check(obj=path, obj_type=str, obj_name='path', is_allow_none=False)
+        self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
+
         reports_dir = os.path.join(self.dbrunner_temp_path, name)
 
         self.__scp_get(remote_path=reports_dir, local_path=path, recursive=True, 
@@ -543,7 +723,7 @@ class DBRunner(BaseClass):
                        error_msg=f"Failed to pull reports '{name}' to local '{path}'")
 
         if is_delete_reports:
-            self.__ssh_exec_command(f"ssh db-under@{self.hostname} 'rm -rf {reports_dir}'", 
+            self.__ssh_exec_command(f"rm -rf {reports_dir}", 
                                     going_msg=f"Deleting reports '{reports_dir}' on host...", 
                                     finished_msg=f"Deleted reports '{reports_dir}' on host", 
                                     error_msg=f"Failed to delete reports '{reports_dir}' on host")
@@ -552,10 +732,10 @@ class DBRunner(BaseClass):
         """
         Run Benchmark
 
-        :param str reports_path: 
+        :param str reports_path: The download path of the reports on the local host
         :param dict alts: The modification would be applied to ``base_config``
         :param str base_config: The path of the load-config for Auto-Bencher and it would be modified by ``alts``
-        :param bool is_delete_reports:
+        :param bool is_delete_reports: Whether to delete the reports on the server, sequencer, and the remote host
         :return: A tupel contains the standard input/output/error stream after executing the command. 
         :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
@@ -577,13 +757,14 @@ class DBRunner(BaseClass):
 
         # Run benchmark
         stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} benchmark -d {self.DB_NAME} -p {self.BENCH_CONFIG}', 
-                                                        going_msg=f"Benchmarking...", 
-                                                        finished_msg=f"Benchmarked", 
-                                                        error_msg=f"Failed to benchmark")
+                                                                      going_msg=f"Benchmarking...", 
+                                                                      finished_msg=f"Benchmarked", 
+                                                                      error_msg=f"Failed to benchmark")
 
         # Collect reports
         if is_pull_reports:
             self.collect_results(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
+            self.move_stats(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
             self.pull_reports_to_local(name=self.REPORTS_ON_HOST_DIR, path=reports_path, is_delete_reports=is_delete_reports)
             
         # Kill JAVA processes

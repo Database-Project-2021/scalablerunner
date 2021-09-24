@@ -141,11 +141,27 @@ class TestSSH(unittest.TestCase):
 
     def test_put(self):
         for i in range(self.TEST_LOOP_COUNT):
+            # server.jar
             self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3)
 
+            # bench.toml
+            # self.client.put(files='data/config/bench.toml', remote_path='./', recursive=False, preserve_times=False, retry_count=3)
+
+            # jars.zip
+            # self.client.put(files='data/jars/jars.zip', remote_path='./', recursive=False, preserve_times=False, retry_count=3)
+
         for i in range(self.TEST_LOOP_COUNT // 2):
-            self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
-            self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
+            # server.jar
+            # self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
+            # self.client.put(files='data/jars/server.jar', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
+
+            # bench.toml
+            self.client.put(files='data/config/bench.toml', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
+            self.client.put(files='data/config/bench.toml', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
+
+            # jars.zip
+            # self.client.put(files='data/jars/jars.zip', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
+            # self.client.put(files='data/jars/jars.zip', remote_path='./', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
 
     def test_putfo(self):
         # Test file
@@ -156,6 +172,30 @@ class TestSSH(unittest.TestCase):
         for i in range(self.TEST_LOOP_COUNT // 2):
             self.client.putfo(fl=test_file, remote_path='./test.txt', retry_count=3, is_raise_err=False)
             self.client.putfo(fl=test_file, remote_path='./test.txt', retry_count=3, is_raise_err=True)
+
+    def test_large_put(self):
+        for i in range(self.TEST_LOOP_COUNT):
+            # server.jar
+            self.client.large_put(files='data/jars/server.jar', remote_path='./server.jar', recursive=False, retry_count=3)
+
+            # bench.toml
+            # self.client.put(files='data/config/bench.toml', remote_path='./bench.toml', recursive=False, retry_count=3)
+
+            # jars.zip
+            # self.client.put(files='data/jars/jars.zip', remote_path='./jars.zip', recursive=False, retry_count=3)
+
+        for i in range(self.TEST_LOOP_COUNT // 2):
+            # server.jar
+            # self.client.put(files='data/jars/server.jar', remote_path='./server.jar', recursive=False, retry_count=3, is_raise_err=False)
+            # self.client.put(files='data/jars/server.jar', remote_path='./server.jar', recursive=False, retry_count=3, is_raise_err=True)
+
+            # bench.toml
+            self.client.put(files='data/config/bench.toml', remote_path='./bench.toml', recursive=False, retry_count=3, is_raise_err=False)
+            self.client.put(files='data/config/bench.toml', remote_path='./bench.toml', recursive=False, retry_count=3, is_raise_err=True)
+
+            # jars.zip
+            # self.client.put(files='data/jars/jars.zip', remote_path='./jars.zip', recursive=False, retry_count=3, is_raise_err=False)
+            # self.client.put(files='data/jars/jars.zip', remote_path='./jars.zip', recursive=False, retry_count=3, is_raise_err=True)
 
     def test_get(self):
         for i in range(self.TEST_LOOP_COUNT):
@@ -270,6 +310,39 @@ class TestDBRunner(unittest.TestCase):
     SSH_DEFAULT_RETRY_COUT = 3
     SSH_DEFAULT_IS_RAISE_ERR = True
 
+    # Configurations
+    VANILLABENCH_NAME = "vanillabench"
+    ELASQL_NAME = "elasql"
+    ELASQLBENCH_NAME = "elasqlbench"
+    BENCHMARK_INTERVAL_NAME = "org.vanilladb.bench.BenchmarkerParameters.BENCHMARK_INTERVAL"
+    INIT_RECORD_PER_PART_NAME = "org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.INIT_RECORD_PER_PART"
+    RW_TX_RATE_NAME = "org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.RW_TX_RATE"
+    ENABLE_COLLECTING_DATA_NAME = "org.elasql.perf.tpart.ai.Estimator.ENABLE_COLLECTING_DATA"
+
+    BENCHMARK_INTERVAL = "30000"
+    INIT_RECORD_PER_PART = "100000"
+    ENABLE_COLLECTING_DATA = "true"
+    RW_TX_RATE = "1"
+
+    ARGS_LOAD = {
+                    ELASQLBENCH_NAME: {
+                        INIT_RECORD_PER_PART_NAME: INIT_RECORD_PER_PART
+                    }
+                }
+
+    ARGS_BENCH = {
+                    VANILLABENCH_NAME: {
+                        BENCHMARK_INTERVAL_NAME: BENCHMARK_INTERVAL
+                    },
+                    ELASQL_NAME: {
+                        ENABLE_COLLECTING_DATA_NAME: ENABLE_COLLECTING_DATA
+                    },
+                    ELASQLBENCH_NAME: {
+                        INIT_RECORD_PER_PART_NAME: INIT_RECORD_PER_PART,
+                        RW_TX_RATE_NAME: RW_TX_RATE
+                    }
+                }
+
     def __info(self, *args, **kwargs) -> None:
         print(f"[Test DB Runner] Info: {info(*args, **kwargs)}")
 
@@ -317,34 +390,67 @@ class TestDBRunner(unittest.TestCase):
         except:
             self.__error(f"Fail to pass test_connect")
             traceback.print_exc()
+            raise BaseException(f"Failed to pass test_connect()")
 
     def test_upload_jars(self):
         try:
             for i in range(10):
                 self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
+                self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar', use_stable=True)
         except:
             self.__error(f"Fail to pass test_upload_jars")
             traceback.print_exc()
+            raise BaseException(f"Failed to pass test_upload_jars()")
 
     def test_load(self):
         try:
             self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
             for i in range(3):
-                self.dr.load(is_kill_java=True)
+                self.dr.load(alts=self.ARGS_LOAD, is_kill_java=True)
+
+            # Check configuration load.toml
+            assert self.dr.get_load_config(format=DBRunner.DICT)[self.ELASQLBENCH_NAME][self.INIT_RECORD_PER_PART_NAME] == self.INIT_RECORD_PER_PART
         except:
             self.__error(f"Fail to pass test_load()")
             traceback.print_exc()
+            raise BaseException(f"Failed to pass test_load()")
+
+    # def test_pull_reports_to_local(self):
+    #     try:
+    #         self.dr.pull_reports_to_local(name="db_runner_workspace_test/auto-bencher/parameters", path=get_temp_dir(), is_delete_reports=False)
+    #     except:
+    #         self.__error(f"Fail to pass test_pull_reports_to_local()")
+    #         traceback.print_exc()
+    #         raise BaseException(f"Failed to pass test_pull_reports_to_local()")
+
+    # def test_move_stats(self):
+    #     try:
+    #         self.dr.move_stats(name=DBRunner.REPORTS_ON_HOST_DIR)
+    #     except:
+    #         self.__error(f"Fail to pass test_move_stats()")
+    #         traceback.print_exc()
+    #         raise BaseException(f"Failed to pass test_move_stats()")
 
     def test_bench(self):
         try:
             self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
-            self.dr.load()
+            self.dr.load(alts=self.ARGS_LOAD, is_kill_java=True)
             for i in range(1):
-                self.dr.bench(reports_path=get_temp_dir(), is_pull_reports=True, is_delete_reports=True, 
+                self.dr.bench(reports_path=get_temp_dir(), alts=self.ARGS_BENCH, is_pull_reports=True, is_delete_reports=True, 
                               is_kill_java=True)
+
+            self.dr.bench(reports_path=get_temp_dir(), alts=self.ARGS_BENCH, is_pull_reports=False, is_delete_reports=False, 
+                          is_kill_java=True)
+
+            # Check configuration bench.toml
+            assert self.dr.get_bench_config(format=DBRunner.DICT)[self.ELASQLBENCH_NAME][self.INIT_RECORD_PER_PART_NAME] == self.INIT_RECORD_PER_PART
+            assert self.dr.get_bench_config(format=DBRunner.DICT)[self.ELASQLBENCH_NAME][self.RW_TX_RATE_NAME] == self.RW_TX_RATE
+            assert self.dr.get_bench_config(format=DBRunner.DICT)[self.ELASQL_NAME][self.ENABLE_COLLECTING_DATA_NAME] == self.ENABLE_COLLECTING_DATA
+
         except:
             self.__error(f"Fail to pass test_bench()")
             traceback.print_exc()
+            raise BaseException(f"Failed to pass test_bench()")
 
 def suite():
     suite = unittest.TestSuite()
