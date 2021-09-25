@@ -7,9 +7,14 @@ def check_none():
     return 
 
 class CostEstimatorArgs():
-    def __init__(self):
-        pass
-    def add_argument(**kwargs):
+
+    def __init__(self, **init_values):
+        self.values = init_values
+        return
+
+    def add_argument(self, **kwargs):
+        for(key, val) in kwargs.items():
+            self.values.append()
         pass
 
 def call_costestimator(task_name: str, sub_task_name: List[str], csv_dir: List[str], server_count: int, ou_name: str, 
