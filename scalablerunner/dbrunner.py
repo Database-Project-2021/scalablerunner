@@ -483,13 +483,13 @@ class DBRunner(BaseClass):
         # Install autobencher
         self.__ssh_exec_command(f"rm -rf {self.workspace}; mkdir {self.workspace}; cd {self.workspace}; git clone {self.AUTOBENCHER_GITHUB}; cd {self.AUTOBENCHER_NAME}; npm install",
                                 going_msg=f"Installing Auto-Bencher...", 
-                                finished_msg=f"Installed Auto-Bencher...", 
+                                finished_msg=f"Installed Auto-Bencher", 
                                 error_msg=f"Failed to install Auto-Bencher")
 
         # Create JAR directory and create TEMP directory for storing reports temporarily
         self.__ssh_exec_command(f"mkdir -p {self.dbrunner_temp_path}; mkdir -p {self.jar_dir}",
                                 going_msg=f"Creating diretories: {self.dbrunner_temp_path} and {self.jar_dir}...", 
-                                finished_msg=f"Created diretories: {self.dbrunner_temp_path} and {self.jar_dir}...", 
+                                finished_msg=f"Created diretories: {self.dbrunner_temp_path} and {self.jar_dir}", 
                                 error_msg=f"Failed to create diretories: {self.dbrunner_temp_path} and {self.jar_dir}")
 
         self.upload_bencher_config()
@@ -547,7 +547,7 @@ class DBRunner(BaseClass):
             raise BaseException(f"Please call method config_cluster() at first.")
 
         stdin, stdout, stderr, is_successed = self.__scp_put(files=autobencher_jdk, remote_path=self.jdk_dir, going_msg=f'Uploading JDK file', 
-                       finished_msg=f'Uploaded JDK file', error_msg=f'Failed to upload JDK file')
+                                                             finished_msg=f'Uploaded JDK file', error_msg=f'Failed to upload JDK file')
         return stdin, stdout, stderr, is_successed
 
     def __update_cluster_config(self, config: dict):
@@ -589,9 +589,9 @@ class DBRunner(BaseClass):
 
         # Run load test bed
         stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} load -d {self.DB_NAME} -p {self.LOAD_CONFIG}', 
-                                                        going_msg=f"Loading test bed...", 
-                                                        finished_msg=f"Loaded test bed", 
-                                                        error_msg=f"Failed to load test bed")
+                                                                      going_msg=f"Loading test bed...", 
+                                                                      finished_msg=f"Loaded test bed", 
+                                                                      error_msg=f"Failed to load test bed")
         # Kill JAVA processes
         if is_kill_java:
             self.kill_java()

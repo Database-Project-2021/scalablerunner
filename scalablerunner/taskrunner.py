@@ -696,7 +696,7 @@ class GroupController(BaseClass):
         Build the list of all parameter combinations and set up resource manager and ProcessPool
         """
         self.call = self.tasks.get(self.CALL_ENTRY_NAME, None)
-        if not (isinstance(self.call, str) or isinstance(self.call, types.FunctionType)):
+        if not (isinstance(self.call, str) or callable(self.call)):
             raise TypeError(f"Value of entry 'Call' of section-group '{self.section_name} - {self.group_name}' is neither a callable function nor string")
         
         # Convert parameter config to list
