@@ -31,17 +31,19 @@ def get_host_infos():
 
     return hostname, username, password, port
 
-def name_fn(reports_path: str, alts: dict):
+def name_fn_mmt(reports_path: str, alts: dict):
     rte = alts['vanillabench']['org.vanilladb.bench.BenchmarkerParameters.NUM_RTES']
-    return os.path.join(reports_path, f'google_rte-{rte}')
+    rte_dir = os.path.join(reports_path, f'mmt_rte-{rte}')
+    if not os.path.isdir(rte_dir):
+        os.makedirs(rte_dir) 
+    return rte_dir
 
-# def config_db_runner(db_runner: DBRunner) -> DBRunner:
-#     db_runner.config_bencher(sequencer="192.168.1.32", 
-#                              servers=["192.168.1.31", "192.168.1.30", "192.168.1.27", "192.168.1.26"], 
-#                              clients=["192.168.1.9", "192.168.1.8"], 
-#                              package_path='/home/db-under/sychou/autobench/package/jdk-8u211-linux-x64.tar.gz')
-#     db_runner.config_cluster(server_count=4, jar_dir='latest')
-#     return db_runner
+def name_fn_mmg(reports_path: str, alts: dict):
+    rte = alts['vanillabench']['org.vanilladb.bench.BenchmarkerParameters.NUM_RTES']
+    rte_dir = os.path.join(reports_path, f'mmg_rte-{rte}')
+    if not os.path.isdir(rte_dir):
+        os.makedirs(rte_dir) 
+    return rte_dir
 
 class PopCat(BaseClass):
     YCSB = 0
@@ -124,6 +126,9 @@ class Socket():
     def wait_event(self):
         pass
 
+rte_params = [{'vanillabench':{'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': "1"}}] + \
+             [{'vanillabench':{'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': str(rte)}} for rte in range(5, 200, 5)]
+
 cw = {
     'workspace': 'db_runner_workspace_cw',
     'package_path': '/home/db-under/sychou/autobench/package/jdk-8u211-linux-x64.tar.gz',
@@ -136,45 +141,11 @@ cw = {
     'servers': ["192.168.1.31", "192.168.1.30", "192.168.1.27", "192.168.1.26"], 
     'clients': ["192.168.1.9", "192.168.1.8"], 
     'load_alts': [None],
-    'load_base_config': ['temp/smg/load.smg.toml'],
-    'bench_alts': [
-        {
-            'vanillabench':{
-                'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': "50",
-            },
-        },
-        {
-            'vanillabench':{
-                'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': "75",
-            },
-        },
-        {
-            'vanillabench':{
-                'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': "100",
-            },
-        },
-        {
-            'vanillabench':{
-                'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': "125",
-            },
-        },
-        {
-            'vanillabench':{
-                'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': "150",
-            },
-        },
-        {
-            'vanillabench':{
-                'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': "175",
-            },
-        },
-        {
-            'vanillabench':{
-                'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': "200",
-            },
-        }
-    ],
-    'bench_base_config': ['temp/smg/bench.smg.toml']
+    'bench_alts': rte_params,
+    'load_base_config_mmt': ['temp/mmt/load.mmt.toml'],
+    'bench_base_config_mmt': ['temp/mmt/bench.mmt.toml'],
+    'load_base_config_mmg': ['temp/mmg/load.mmg.toml'],
+    'bench_base_config_mmg': ['temp/mmg/bench.mmg.toml']
 #     'benc_alts': {
 #                     'vanillabench': {
 #                         'org.vanilladb.bench.BenchmarkerParameters.BENCHMARK_INTERVAL': "30000"
@@ -211,7 +182,7 @@ cw = {
 package_path = '/home/db-under/sychou/autobench/package/jdk-8u211-linux-x64.tar.gz'
 server_jar = 'data/jars/server.jar'
 client_jar = 'data/jars/client.jar'
-server_count = 4
+# server_count = 4
 # load_alts = {
 #                 'elasqlbench': {
 #                     'org.elasql.bench.benchmarks.ycsb.ElasqlYcsbConstants.INIT_RECORD_PER_PART': "100000"
@@ -219,35 +190,57 @@ server_count = 4
 #             }
 
 if __name__ == '__main__':
-    pc = PopCat(reports_path='temp/integrate', bench_type=PopCat.YCSB, workspace=cw['workspace'])
-    pc.config(server_count=1, sequencer=cw['sequencer'], servers=cw['servers'], clients=cw['clients'])
+    for i in range(5):
+        pc = PopCat(reports_path=f'temp/betterRTE/round{i}', bench_type=PopCat.YCSB, workspace=cw['workspace'])
+        pc.config(server_count=4, sequencer=cw['sequencer'], servers=cw['servers'], clients=cw['clients'])
 
-    # pc.init_load(server_jar=server_jar, client_jar=server_jar, alts=cw['load_alts'][0], base_config=cw['load_base_config'][0])
-    # pc.benchmark(name_fn=name_fn, alts=cw['bench_alts'][0], base_config=cw['bench_base_config'][0])
+        # pc.init_load(server_jar=server_jar, client_jar=server_jar, alts=cw['load_alts'][0], base_config=cw['load_base_config'][0])
+        # pc.benchmark(name_fn=name_fn, alts=cw['bench_alts'][0], base_config=cw['bench_base_config'][0])
 
-    config = {
-        'Section Initialize | 1 server': {
-            'Group CW': {
-                'Call': pc.init_load,
-                'Param': {
-                    'server_jar': [server_jar], 
-                    'client_jar': [client_jar],
-                    'alts': cw['load_alts'],
-                    'base_config': cw['load_base_config'],
-                }
+        config = {
+            'Section Initialize | 4 server | MMT': {
+                'Group CW': {
+                    'Call': pc.init_load,
+                    'Param': {
+                        'server_jar': [server_jar], 
+                        'client_jar': [client_jar],
+                        'alts': cw['load_alts'],
+                        'base_config': cw['load_base_config_mmt'],
+                    }
+                },
             },
-        },
-        'Section Benchmark | 1 server': {
-            'Group CW': {
-                'Call': pc.benchmark,
-                'Param': {
-                    'name_fn': [name_fn],
-                    'alts': cw['bench_alts'],
-                    'base_config': cw['bench_base_config']
-                }
+            'Section Benchmark | 4 server | MMT': {
+                'Group CW': {
+                    'Call': pc.benchmark,
+                    'Param': {
+                        'name_fn': [name_fn_mmt],
+                        'alts': cw['bench_alts'],
+                        'base_config': cw['bench_base_config_mmt']
+                    }
+                },
             },
+            'Section Initialize | 4 server | MMG': {
+                'Group CW': {
+                    'Call': pc.init_load,
+                    'Param': {
+                        'server_jar': [server_jar], 
+                        'client_jar': [client_jar],
+                        'alts': cw['load_alts'],
+                        'base_config': cw['load_base_config_mmg'],
+                    }
+                },
+            },
+            'Section Benchmark | 4 server | MMG': {
+                'Group CW': {
+                    'Call': pc.benchmark,
+                    'Param': {
+                        'name_fn': [name_fn_mmg],
+                        'alts': cw['bench_alts'],
+                        'base_config': cw['bench_base_config_mmg']
+                    }
+                },
+            }
         }
-    }
 
-    tr = TaskRunner(config=config)
-    tr.run()
+        tr = TaskRunner(config=config)
+        tr.run()
