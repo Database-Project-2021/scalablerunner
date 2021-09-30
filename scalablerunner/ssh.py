@@ -34,6 +34,7 @@ class SSH(BaseClass):
     # Default functionalities
     DEFAULT_IS_RAISE_ERR = False
     DEFAULT_RETRY_COUNT = 3
+    DEFAULT_TIME_LIMIT = 900 # 15 mins
 
     def __init__(self, hostname: str, username: str=None, password: str=None, port: int=22) -> None:
         """
@@ -54,6 +55,7 @@ class SSH(BaseClass):
         self.port = port
         self.default_is_raise_err = self.DEFAULT_IS_RAISE_ERR
         self.default_retry_count = self.DEFAULT_RETRY_COUNT
+        self.default_time_limit = self.DEFAULT_TIME_LIMIT
 
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -186,9 +188,22 @@ class SSH(BaseClass):
         else:
             return retry_count
 
+    def __process_time_limit(self, time_limit: float) -> float:
+        """
+        Not implemented yet.
+        Determine to use the new value of 'time_limit' passed by the user or the default value.
+        If the argument is ``None``, use default value instead.
+        """
+        self.__type_check(obj=time_limit, obj_type=float, obj_name='time_limit', is_allow_none=True)
+
+        if time_limit is None:
+            return self.default_time_limit
+        else:
+            return time_limit
+
     def set_default_is_raise_err(self, default_is_raise_err: bool) -> 'SSH':
         """
-        Set up default value of ``is_raise_err`` of this instance.
+        Overwrite default value of ``is_raise_err`` of this instance.
 
         :param bool default_is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
@@ -201,13 +216,26 @@ class SSH(BaseClass):
 
     def set_default_retry_count(self, default_retry_count: bool) -> 'SSH':
         """
-        Set up default value of ``retry_count`` of this instance.
+        Overwrite default value of ``retry_count`` of this instance.
 
         :param int default_retry_count: Determine the default retry-count of the class SSH.
         """
         self.__type_check(obj=default_retry_count, obj_type=int, obj_name='default_retry_count', is_allow_none=False)
 
         self.default_retry_count = default_retry_count
+        return self
+
+    def set_default_time_limit(self, default_time_limit: float) -> 'SSH':
+        """
+        Not implemented yet.
+        Overwrite default value of ``time_limit`` of this instance. The default value is 900 secs, which is 15 mins.
+
+        :param float default_time_limit: Determine the default time-limit of the class SSH. The time-limit of an operation including 
+            ``exec_command``, ``get``, ``put``...etc means the maximum execution time in seconds of an operation.
+        """
+        self.__type_check(obj=default_time_limit, obj_type=float, obj_name='default_time_limit', is_allow_none=False)
+
+        self.default_time_limit = default_time_limit
         return self
 
     def connect(self, timeout: int=20, retry_count: int=None, is_raise_err: bool=None) -> None:
