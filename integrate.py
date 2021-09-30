@@ -47,10 +47,12 @@ def name_fn_mmg(reports_path: str, alts: dict):
 
 class PopCat(BaseClass):
     YCSB = 0
-    def __init__(self, reports_path: str, bench_type: str, workspace: str):
+    def __init__(self, reports_path: str, bench_type: str, workspace: str, log_file: str=None):
         self.reports_path = reports_path
         self.bench_type = bench_type
         self.dr = DBRunner(workspace)
+        if log_file is not None:
+            self.dr.output_log(file_name=log_file)
 
     def connect(self):
         HOSTNAME, USERNAME, PASSWORD, PORT = get_host_infos()
@@ -127,7 +129,7 @@ class Socket():
         pass
 
 rte_params = [{'vanillabench':{'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': "1"}}] + \
-             [{'vanillabench':{'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': str(rte)}} for rte in range(5, 200, 5)]
+             [{'vanillabench':{'org.vanilladb.bench.BenchmarkerParameters.NUM_RTES': str(rte)}} for rte in range(5, 201, 5)]
 
 cw = {
     'workspace': 'db_runner_workspace_cw',
@@ -190,8 +192,8 @@ client_jar = 'data/jars/client.jar'
 #             }
 
 if __name__ == '__main__':
-    for i in range(5):
-        pc = PopCat(reports_path=f'temp/betterRTE/round{i}', bench_type=PopCat.YCSB, workspace=cw['workspace'])
+    for i in range(1, 5, 1):
+        pc = PopCat(reports_path=f'temp/betterRTE/round{i}', bench_type=PopCat.YCSB, workspace=cw['workspace'], log_file='temp/betterRTE/betterRTE.log')
         pc.config(server_count=4, sequencer=cw['sequencer'], servers=cw['servers'], clients=cw['clients'])
 
         # pc.init_load(server_jar=server_jar, client_jar=server_jar, alts=cw['load_alts'][0], base_config=cw['load_base_config'][0])

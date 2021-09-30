@@ -421,7 +421,8 @@ class ProcessPool(BaseClass):
         self.send_msg_to_slave_queue_list = [Queue() for i in range(self.num_process)]
         self.recv_msg_form_slave_queue = Queue()
         
-        self.proc_list = [Process(target=self.__slave_fn, 
+        self.proc_list = [Process(name=f"ProcPool.{str(i)}",
+                                  target=self.__slave_fn, 
                                   args=(ProcessArg(id=i, 
                                                   msg_in_queue=self.send_msg_to_slave_queue_list[i], 
                                                   msg_out_queue=self.recv_msg_form_slave_queue), )) for i in range(self.num_process)]
@@ -958,7 +959,7 @@ class TaskRunner(BaseClass):
                 self.__error(f"Something wrong with the section-group '{section_name} - {group_name}', fail to finish the task of the group")
                 traceback.print_exc()
             
-        proc = Process(target=run_group_controller, args=(section_name, group_name, tasks))
+        proc = Process(name=f"{section_name}.{group_name}", target=run_group_controller, args=(section_name, group_name, tasks))
         proc.start()
         
         return proc

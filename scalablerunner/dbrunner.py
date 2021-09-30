@@ -17,6 +17,7 @@ class DBRunner(BaseClass):
     SSH_DEFAULT_RETRY_COUNT = 3
     SSH_DEFAULT_IS_RAISE_ERR = False
     SSH_DEFAULT_CMD_RETRY_COUNT = 2
+    SSH_DEFAULT_TIMEOUT = 900
 
     # Auto-bencher
     AUTOBENCHER_NAME = 'auto-bencher'
@@ -83,6 +84,7 @@ class DBRunner(BaseClass):
         self.default_retry_count = self.SSH_DEFAULT_RETRY_COUNT
         self.default_cmd_retry_count = self.SSH_DEFAULT_CMD_RETRY_COUNT
         self.default_jdk_dir = self.JDK_DEFAULT_DIR
+        self.default_timeout = self.SSH_DEFAULT_TIMEOUT
 
         # Logger
         self.logger = self._set_UtilLogger(module='Runner', submodule='DBRunner', verbose=UtilLogger.INFO)
@@ -168,11 +170,12 @@ class DBRunner(BaseClass):
                 raise BaseException(f"{error_msg}")
             return res
 
-    def __ssh_exec_command(self, command: str, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> Tuple:
+    def __ssh_exec_command(self, command: str, timeout: int=None, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> Tuple:
         """
         Execute command on remote host
 
         :param str command: The command would be executed on the remote host
+        :param int timeout: Set command’s channel timeout
         :param str going_msg: The ongoing message
         :param str finished_msg: The finished message
         :param str error_msg: The error message
@@ -180,7 +183,7 @@ class DBRunner(BaseClass):
         """
         # Control 'default_cmd_retry_count' by this method
         res = self.__client_exec(fn_name='exec_command', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg, 
-                                 command=command, cmd_retry_count=self.default_cmd_retry_count, get_pty=True)
+                                 command=command, cmd_retry_count=self.default_cmd_retry_count, get_pty=True, timeout=timeout)
         return res
 
     def __scp_put(self, files: str, remote_path: str, recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
@@ -217,7 +220,8 @@ class DBRunner(BaseClass):
 
     def set_default_is_raise_err(self, default_is_raise_err: bool) -> 'DBRunner':
         """
-        Set up default value of ``default_is_raise_err`` of this instance.
+        Set up default value of ``default_is_raise_err`` of this instance. If you've connect to the host before, 
+        you need to reconnect or close and connect to the host again to apply the new settings.
 
         :param bool default_is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
@@ -232,7 +236,8 @@ class DBRunner(BaseClass):
 
     def set_default_retry_count(self, default_retry_count: bool) -> 'DBRunner':
         """
-        Set up default value of ``retry_count`` of each operation.
+        Set up default value of ``retry_count`` of each operation. If you've connect to the host before, 
+        you need to reconnect or close and connect to the host again to apply the new settings.
 
         :param int default_retry_count: Determine the default retry-count of the class SSH.
         :return: The instance itself
@@ -256,6 +261,20 @@ class DBRunner(BaseClass):
         self.default_cmd_retry_count = default_cmd_retry_count
         return self
 
+    def set_default_timeout(self, default_timeout: int) -> 'DBRunner':
+        """
+        Set up default value of ``timeout`` of SSH remote command execution. If you've connect to the host before, 
+        you need to reconnect or close and connect to the host again to apply the new settings.
+
+        :param int default_timeout: Determine the default timeout of the each SSH remote command execution.
+        :return: The instance itself
+        :rtype: DBRunner
+        """
+        self.__type_check(obj=default_timeout, obj_type=int, obj_name='default_timeout', is_allow_none=False)
+
+        self.default_timeout = default_timeout
+        return self
+
     def connect(self, hostname: str, username: str=None, password: str=None, port: int=22) -> None:
         """
         Connect to the host that ``Auto-Bencher`` locates
@@ -274,6 +293,7 @@ class DBRunner(BaseClass):
         # Let SSH module control the 'default_is_raise_err' and 'default_retry_count'
         self.host.set_default_is_raise_err(default_is_raise_err=self.default_is_raise_err)
         self.host.set_default_retry_count(default_retry_count=self.default_retry_count)
+        self.host.set_default_timeout(default_timeout=self.default_timeout)
         
         self.__client_exec(fn_name='connect', going_msg=f"Connecting to remote host", finished_msg=f"Connected to remote host", error_msg=f"Failed to connect remote host")
         

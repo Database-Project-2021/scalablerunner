@@ -3,6 +3,7 @@ from time import sleep
 import time
 import traceback
 from typing import Tuple
+import socket
 
 import paramiko
 from scp import SCPClient
@@ -34,6 +35,7 @@ class SSH(BaseClass):
     # Default functionalities
     DEFAULT_IS_RAISE_ERR = False
     DEFAULT_RETRY_COUNT = 3
+    DEFAULT_TIMEOUT = None # 15 mins
 
     def __init__(self, hostname: str, username: str=None, password: str=None, port: int=22) -> None:
         """
@@ -54,6 +56,7 @@ class SSH(BaseClass):
         self.port = port
         self.default_is_raise_err = self.DEFAULT_IS_RAISE_ERR
         self.default_retry_count = self.DEFAULT_RETRY_COUNT
+        self.default_timeout = self.DEFAULT_TIMEOUT
 
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -90,6 +93,12 @@ class SSH(BaseClass):
         """
         super()._error(*args, **kwargs)
 
+    def __success_info(self, msg: str):
+        self.__info(f"SUCCESSED - {msg}")
+
+    def __fail_info(self, msg: str):
+        self.__error(f"FAILED - {msg}")
+
     def __type_check(self, *args, **kwargs) -> None:
         """
         Type check via function ``type_check`` in module ``Util``
@@ -99,7 +108,7 @@ class SSH(BaseClass):
         """
         super()._type_check(*args, **kwargs)
     
-    def __retrying_execution(self, remote_type: RemoteType, fn_name: str, name: str, retry_count: int, is_raise_err: bool, *args, **kargs) -> Tuple:
+    def __retrying_execution(self, remote_type: RemoteType, fn_name: str, name: str, retry_count: int, is_raise_err: bool, is_show_success: bool, *args, **kargs) -> Tuple:
         """
         Retrying while an error occurs
 
@@ -146,18 +155,21 @@ class SSH(BaseClass):
                 except:
                     is_successed = False
                     if i == 0 and try_counter > 1:
+                        self.__warning(f"{name} failed, retrying...")
                         traceback.print_exc()
-                        self.__warning(f"{name} failed, re-trying.")
                         self.reconnect()
                     elif i > 0:
+                        self.__warning(f"{i}-th retry of {name} failed.")
                         traceback.print_exc()
-                        self.__warning(f"{i}-th re-try failed.")
                         self.reconnect()
         finally:
             if is_successed:
-                self.__info(f"SUCCESSED - {name}")
+                if is_show_success:
+                    self.__success_info(msg=name)
+                    # self.__info(f"SUCCESSED - {name}")
             else:
-                self.__error(f"FAILED - {name}")
+                # self.__error(f"FAILED - {name}")
+                self.__fail_info(msg=name)
                 if self.__process_is_raise_err(is_raise_err=is_raise_err):
                     raise BaseException(f"Fail to execute the operation, even reconnect to the host")
             return res
@@ -186,9 +198,21 @@ class SSH(BaseClass):
         else:
             return retry_count
 
+    def __process_timeout(self, timeout: int) -> int:
+        """
+        Determine to use the new value of 'timeout' passed by the user or the default value.
+        If the argument is ``None``, use default value instead.
+        """
+        self.__type_check(obj=timeout, obj_type=int, obj_name='timeout', is_allow_none=True)
+
+        if timeout is None:
+            return self.default_timeout
+        else:
+            return timeout
+
     def set_default_is_raise_err(self, default_is_raise_err: bool) -> 'SSH':
         """
-        Set up default value of ``is_raise_err`` of this instance.
+        Overwrite default value of ``is_raise_err`` of this instance.
 
         :param bool default_is_raise_err: Determine whether to throw an error or just show in log then keep going while an error occurs. 
             Default value is None, means same as default setting. You can pass true/false to overwrite the default one, 
@@ -201,13 +225,25 @@ class SSH(BaseClass):
 
     def set_default_retry_count(self, default_retry_count: bool) -> 'SSH':
         """
-        Set up default value of ``retry_count`` of this instance.
+        Overwrite default value of ``retry_count`` of this instance.
 
         :param int default_retry_count: Determine the default retry-count of the class SSH.
         """
         self.__type_check(obj=default_retry_count, obj_type=int, obj_name='default_retry_count', is_allow_none=False)
 
         self.default_retry_count = default_retry_count
+        return self
+
+    def set_default_timeout(self, default_timeout: int) -> 'SSH':
+        """
+        Overwrite default value of ``timeout`` of this instance. The default value is 900 secs, which is 15 mins.
+
+        :param int default_timeout: Determine the default time-limit of the class SSH. The time-limit of an operation including 
+            ``exec_command``, ``get``, ``put``...etc means the maximum execution time in seconds of an operation.
+        """
+        self.__type_check(obj=default_timeout, obj_type=int, obj_name='default_timeout', is_allow_none=False)
+
+        self.default_timeout = default_timeout
         return self
 
     def connect(self, timeout: int=20, retry_count: int=None, is_raise_err: bool=None) -> None:
@@ -226,7 +262,7 @@ class SSH(BaseClass):
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='connect', name=f"SSH connect to '{self.hostname}'", 
-                                  retry_count=retry_count, is_raise_err=is_raise_err, 
+                                  retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
                                   hostname=self.hostname, port=self.port, username=self.username, password=self.password, timeout=timeout)
         # self.scpClient = SCPClient(self.client.get_transport(), buff_size=self.SCP_BUFFER_SIZE, socket_timeout=self.SCP_SOCKET_TIMEOUT, progress=progress)
         self.scpClient = SCPClient(self.client.get_transport(), buff_size=self.SCP_BUFFER_SIZE, socket_timeout=self.SCP_SOCKET_TIMEOUT, progress4=progress4)
@@ -265,11 +301,11 @@ class SSH(BaseClass):
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         self.__retrying_execution(remote_type=RemoteType.SFTP, fn_name='close', name=f"SFTP closes the connecttion to '{self.hostname}'", 
-                                  retry_count=retry_count, is_raise_err=is_raise_err)
+                                  retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True)
         self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='close', name=f"SCP closes the connecttion to '{self.hostname}'", 
-                                  retry_count=retry_count, is_raise_err=is_raise_err)
+                                  retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True)
         self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='close', name=f"SSH closes the connecttion to '{self.hostname}'", 
-                                  retry_count=retry_count, is_raise_err=is_raise_err)
+                                  retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True)
 
     def exec_command(self, command: str, bufsize: int=-1, timeout: int=None, get_pty: bool=False, environment: dict=None, 
                      is_show_result: bool=True, retry_count: int=None, cmd_retry_count: int=2, is_raise_err: int=None) -> Tuple[paramiko.channel.ChannelStdinFile, paramiko.channel.ChannelFile, paramiko.channel.ChannelStderrFile]:
@@ -300,33 +336,64 @@ class SSH(BaseClass):
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         cmd_retry_counter = 0
-        is_successsed = False
-        while cmd_retry_counter < cmd_retry_count:
-            stdin, stdout, stderr = self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='exec_command', name=f"SSH execute command '{command}'", retry_count=retry_count, is_raise_err=False,
-                                                              command=command, bufsize=bufsize, timeout=timeout, get_pty=get_pty, environment=environment)
-
+        stdin, stdout, stderr = None, None, None
+        is_successsed = True
+        op_name = f"SSH execute command '{command}'"
+        # CMD-Retry count exclude the first time exceution
+        while cmd_retry_counter <= cmd_retry_count:
+            stdin, stdout, stderr = self.__retrying_execution(remote_type=RemoteType.SSH, fn_name='exec_command', name=op_name, retry_count=retry_count, is_raise_err=False, is_show_success=False, 
+                                                              command=command, bufsize=bufsize, timeout=self.__process_timeout(timeout=timeout), get_pty=get_pty, environment=environment)
             # Stdout
             output = ""
-            for line in stdout:
-                output = output + line
-            if output != "":
-                if is_show_result:
-                    print(output)
+            try:
+                for line in stdout:
+                    output = output + line
+            except socket.timeout:
+                # Catch timeout error
+                is_successsed = False
+                self.__warning(f"SSH remote command timeout: {command}")
+            except:
+                # Catch other errors
+                is_successsed = False
+                self.__warning(f"An error occured while reading stdout returned from SSH remote command: {command}")
+                traceback.print_exc()
+            finally:
+                if output != "":
+                    if is_show_result:
+                        print(output)
+
             # Stderr
             output = ""
-            for line in stderr:
-                output = output + line
-            if output != "":
-                self.__error(f"An error occured while executing SSH remote command: {command}")
-                if is_show_result:
-                    print(output)
-                cmd_retry_counter += 1
-            else:
-                is_successsed = True
-                break
+            try:
+                for line in stderr:
+                    output = output + line
+            except:
+                is_successsed = False
+                self.__warning(f"An error occured while reading stderr returned from SSH remote command: {command}")
+                traceback.print_exc()
+            finally:
+                if output != "":
+                    is_successsed = False
+                    self.__warning(f"An error occured while executing SSH remote command: {command}")
+                    if is_show_result:
+                        print(output)
 
-        if self.__process_is_raise_err(is_raise_err=is_raise_err) and (not is_successsed):
-            raise BaseException(f"Fail to execute command on the remote host")
+            if is_successsed:
+                # Check whether the command successed or not
+                self.__success_info(msg=op_name)
+                break
+            else:
+                # Increase the counter of CMD-Retry-Count
+                if cmd_retry_counter == 0 and cmd_retry_count > 0:
+                    self.__warning(f"{op_name} failed, redoing...")
+                if cmd_retry_counter > 0:
+                    self.__warning(f"{cmd_retry_counter}-th redo of {op_name} failed")
+                cmd_retry_counter += 1
+        # Determeine whether to raise error or not
+        if not is_successsed:
+            self.__fail_info(msg=op_name)
+            if self.__process_is_raise_err(is_raise_err=is_raise_err):
+                raise BaseException(f"Fail to execute command on the remote host")
 
         return stdin, stdout, stderr, is_successsed
 
@@ -353,7 +420,7 @@ class SSH(BaseClass):
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='put', name=f"SCP put files from '{files}' to '{remote_path}'", 
-                                  retry_count=retry_count, is_raise_err=is_raise_err, 
+                                  retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
                                   files=files, remote_path=remote_path, recursive=recursive, preserve_times=preserve_times)
 
     def putfo(self, fl, remote_path: str, mode: str='0644', size: int=None, retry_count: int=None, is_raise_err: int=None):
@@ -379,7 +446,7 @@ class SSH(BaseClass):
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='putfo', name=f"SCP put bytes to '{remote_path}'", 
-                                  retry_count=retry_count, is_raise_err=is_raise_err, 
+                                  retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
                                   fl=fl, remote_path=remote_path, mode=mode, size=size)
 
     def get(self, remote_path: str, local_path: str='', recursive: bool=False, preserve_times: bool=False, retry_count: int=None, is_raise_err: int=None):
@@ -408,7 +475,7 @@ class SSH(BaseClass):
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='get', name=f"SCP get files from '{remote_path}' to '{local_path}'", 
-                                  retry_count=retry_count, is_raise_err=is_raise_err, 
+                                  retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
                                   remote_path=remote_path, local_path=local_path, recursive=recursive, preserve_times=preserve_times)
 
     def _custome_put(self, files: str, remote_path: str, recursive: bool) -> None:
@@ -449,5 +516,5 @@ class SSH(BaseClass):
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
         self.__retrying_execution(remote_type=RemoteType.THIS, fn_name='_custome_put', name=f"custome put files from '{files}' to '{remote_path}'", 
-                                retry_count=retry_count, is_raise_err=is_raise_err, 
+                                retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
                                 files=files, remote_path=remote_path, recursive=recursive)
