@@ -42,6 +42,8 @@ class UtilLogger():
         }
 
         self.logger = logging.getLogger(f"{self.module}.{self.submodule}")
+        # self.logger.setLevel(level=logging.CRITICAL)
+        # self.logger.propagate = False
     
     def debug(self, msg: str) -> None:
         if msg is not None:
@@ -76,8 +78,12 @@ class UtilLogger():
     def set_verbose(self, verbose: int):
         self.verbose = verbose
     
-    def output_log(self, file_name: str, level: int):
-        logging.basicConfig(filename=file_name, level=level)
+    def output_log(self, file_name: str, level: int=logging.INFO, filemode: str='a', format: str='%(asctime)s:%(msecs)d PID.%(process)d %(processName)s - %(name)s %(levelname)s %(message)s', datefmt: str='%Y-%m-%d %H:%M:%S'):
+        logging.basicConfig(filename=file_name, 
+                            filemode=filemode,
+                            format=format,
+                            datefmt=datefmt,
+                            level=level)
 
 def progress(filename, size, sent):
     sys.stdout.write("%s's progress: %.2f%%   \r" % (filename, float(sent)/float(size)*100))
@@ -132,8 +138,8 @@ class BaseClass():
     def set_verbose(self, verbose: int) -> None:
         self.logger.set_verbose(verbose=verbose)
     
-    def output_log(self, file_name: str, level: int):
-        self.logger.output_log(file_name=file_name, level=level)
+    def output_log(self, file_name: str, level: int=logging.INFO, filemode: str='a', format: str='%(asctime)s:%(msecs)d PID.%(process)d %(processName)s - %(name)s %(levelname)s %(message)s', datefmt: str='%Y-%m-%d %H:%M:%S'):
+        self.logger.output_log(file_name=file_name, level=level, filemode=filemode, format=format, datefmt=datefmt)
 
     def _info(self, *args, **kwargs) -> None:
         self.logger.info(*args, **kwargs)

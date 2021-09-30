@@ -1,3 +1,4 @@
+import logging
 import os
 import io
 import unittest
@@ -10,6 +11,12 @@ from scalablerunner.util import info, warning, error, type_check, UtilLogger
 from scalablerunner.ssh import SSH
 from scalablerunner.dbrunner import DBRunner
 from scalablerunner.taskrunner import TaskRunner
+
+# logging.basicConfig(filename='temp/test.log',
+#                     filemode='a',
+#                     format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+#                     datefmt='%H:%M:%S',
+#                     level=logging.DEBUG)
 
 # Global variables
 host_infos_file = 'host_infos.toml'
@@ -51,13 +58,14 @@ class TestUtil(unittest.TestCase):
 
 class TestSSH(unittest.TestCase):
     TEST_LOOP_COUNT = 10
-    TIME_OUT = 20
+    TIMEOUT = 20
     RETRY_COUNT = 3
     CMD_RETRY_COUNT = 2
 
     # Default values
     DEFAULT_IS_RAISE_ERR = True
     DEFAULT_RETRY_COUNT = 3
+    DEFAULT_TIMEOUT = 20
 
     def __init__(self, methodName: str) -> None:
         super().__init__(methodName=methodName)
@@ -65,7 +73,8 @@ class TestSSH(unittest.TestCase):
         # Get host infos
         self.HOSTNAME, self.USERNAME, self.PASSWORD, self.PORT = get_host_infos()
         self.client = SSH(hostname=self.HOSTNAME, username=self.USERNAME, password=self.PASSWORD, port=self.PORT)
-        self.client.set_default_is_raise_err(default_is_raise_err=self.DEFAULT_IS_RAISE_ERR)
+        self.client.output_log(file_name='temp/test.log')
+        # self.client.set_default_is_raise_err(default_is_raise_err=self.DEFAULT_IS_RAISE_ERR)
 
     def __info(self, *args, **kwargs) -> None:
         print(f"[Test SSH] Info: {info(*args, **kwargs)}")
@@ -82,7 +91,8 @@ class TestSSH(unittest.TestCase):
     def setUp(self):
         self.client.set_default_is_raise_err(default_is_raise_err=self.DEFAULT_IS_RAISE_ERR)
         self.client.set_default_retry_count(default_retry_count=self.DEFAULT_RETRY_COUNT)
-        self.client.connect(timeout=self.TIME_OUT, retry_count=self.RETRY_COUNT)
+        self.client.set_default_timeout(default_timeout=self.DEFAULT_TIMEOUT)
+        self.client.connect(retry_count=self.RETRY_COUNT)
 
     def tearDown(self):
         self.client.close()
@@ -95,12 +105,12 @@ class TestSSH(unittest.TestCase):
         is_passed = False
         # Turn off is_raise_err, shouldn't raise error
         self.client.set_default_is_raise_err(default_is_raise_err=False)
-        self.client.exec_command(command='rm new_dir_test', timeout=self.TIME_OUT, retry_count=self.RETRY_COUNT, cmd_retry_count=True)
+        self.client.exec_command(command='rm new_dir_test', retry_count=self.RETRY_COUNT, cmd_retry_count=True)
 
         # Turn on is_raise_err, should raise error
         self.client.set_default_is_raise_err(default_is_raise_err=True)
         try:
-            self.client.exec_command(command='rm new_dir_test', timeout=self.TIME_OUT, retry_count=self.RETRY_COUNT, cmd_retry_count=True)
+            self.client.exec_command(command='rm new_dir_test', retry_count=self.RETRY_COUNT, cmd_retry_count=True)
             is_passed = False
         except:
             is_passed = True
@@ -113,27 +123,45 @@ class TestSSH(unittest.TestCase):
     def test_exec_command(self):
         for i in range(self.TEST_LOOP_COUNT):
             stdin, stdout, stderr, is_successed = self.client.exec_command(command='ls -la; mkdir new_dir_test; rm -rf new_dir_test', 
-                                                                           bufsize=-1, timeout=self.TIME_OUT, get_pty=False, environment=None, 
+                                                                           bufsize=-1, get_pty=False, environment=None, 
                                                                            retry_count=self.RETRY_COUNT, cmd_retry_count=self.CMD_RETRY_COUNT)
         assert is_successed is True
-        stdin, stdout, stderr, is_successed = self.client.exec_command(command='rm new_dir_test', timeout=self.TIME_OUT, 
-                                                                       retry_count=self.RETRY_COUNT, cmd_retry_count=self.CMD_RETRY_COUNT, is_raise_err=False)
+        stdin, stdout, stderr, is_successed = self.client.exec_command(command='rm new_dir_test1', retry_count=self.RETRY_COUNT, 
+                                                                       cmd_retry_count=self.CMD_RETRY_COUNT, is_raise_err=False)
         assert is_successed is False
 
         is_passed = True
+        # Test on turning on both is_raise_err and is_show_result 
         try:
-            self.client.exec_command(command='rm new_dir_test', timeout=self.TIME_OUT, retry_count=self.RETRY_COUNT, cmd_retry_count=True, is_raise_err=True)
+            self.client.exec_command(command='rm new_dir_test2', retry_count=self.RETRY_COUNT, cmd_retry_count=1, is_raise_err=True)
             is_passed = False
         except:
-            # self.__info(f"Passed test_exec_command()")
-            is_passed = True
-
+            traceback.print_exc()
+        # Test on turning on is_raise_err and turning off is_show_result 
         try:
-            self.client.exec_command(command='rm new_dir_test', timeout=self.TIME_OUT, retry_count=self.RETRY_COUNT, cmd_retry_count=True, is_show_result=False, is_raise_err=True)
+            self.client.exec_command(command='rm new_dir_test3', retry_count=self.RETRY_COUNT, cmd_retry_count=1, is_show_result=False, is_raise_err=True)
             is_passed = False
         except:
+            traceback.print_exc()
+
+        # Test on timeout
+        try:
+            self.client.exec_command(command='ls -lh; sleep 50', timeout=1, retry_count=self.RETRY_COUNT, cmd_retry_count=1, is_show_result=True, is_raise_err=True)
+            is_passed = False
+        except:
+            traceback.print_exc()
             is_passed = True
 
+        # Test on default_timeout
+        try:
+            self.client.set_default_timeout(default_timeout=1)
+            self.client.reconnect()
+            self.client.exec_command(command='ls -lh; sleep 60', cmd_retry_count=1, is_show_result=True, is_raise_err=False)
+        except:
+            traceback.print_exc()
+            is_passed = False
+
+        # Check whether passed the test
         if not is_passed:
             self.__error(f"Failed to pass test_exec_command()")
             traceback.print_exc()
@@ -292,6 +320,7 @@ class TestTaskRunner(unittest.TestCase):
         }
         
         tr = TaskRunner(config=config, delay=0.5)
+        tr.output_log(file_name='temp/test.log')
         tr.run()
 
 def config_db_runner(db_runner: DBRunner) -> DBRunner:
@@ -362,6 +391,7 @@ class TestDBRunner(unittest.TestCase):
         self.HOSTNAME, self.USERNAME, self.PASSWORD, self.PORT = get_host_infos()
 
         self.dr = DBRunner(workspace=get_workspace_name())
+        self.dr.output_log(file_name='temp/test.log')
     
     @classmethod
     def setUpClass(cls):
