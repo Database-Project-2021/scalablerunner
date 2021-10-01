@@ -34,13 +34,10 @@ class DBRunner(BaseClass):
     JDK_DEFAULT_DIR = '/opt/shared/jdk-8u211-linux-x64.tar.gz'
 
     # Some folders under DBRunner
-    # WORKSPACE = f"db_runner_workspace"
-    # DBRUNNER_AUTOBENHER_PATH = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
     TEMP_DIR = 'temp'
     CPU_DIR = 'cpu'
     DISK_DIR = 'disk'
     LATENCY_DIR = 'latency'
-    # DBRUNNER_TEMP_PATH = os.path.join(WORKSPACE, TEMP_DIR)
     
     # Name of database
     DB_NAME = 'hermes'
@@ -63,12 +60,6 @@ class DBRunner(BaseClass):
     # Get confiuration in format
     DICT = 'dict'
     TOML = 'toml'
-
-    # Directory of configs on DB-Runner
-    # DBRUNNER_CONFIG_DIR = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
-    # DBRUNNER_BENCHER_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, BENCHER_CONFIG)
-    # DBRUNNER_LOAD_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, LOAD_CONFIG)
-    # DBRUNNER_BENCH_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, BENCH_CONFIG)
 
     # Reports
     REPORTS_ON_HOST_DIR = 'reports'
@@ -301,14 +292,6 @@ class DBRunner(BaseClass):
         """
         Close the connection to ``Auto-Bencher`` host.
         """
-        # try:
-        #     self.__info(f"Closing the remote host")
-        #     self.host.close(retry_count=self.RETRY_COUNT)
-        #     self.__info(f"Closed to remote host")
-        # except:
-        #     self.__error(f"Failed to close remote host")
-        #     traceback.print_exc()
-        
         self.__client_exec(fn_name='close', going_msg=f"Closing the remote host", finished_msg=f"Closed to remote host", error_msg=f"Failed to close remote host")
 
     def config_bencher(self, sequencer: str=None, servers: list=None, clients: list=None, 
@@ -677,19 +660,11 @@ class DBRunner(BaseClass):
 
         # For each type of reports
         for file_dir, file_type in zip([self.CPU_DIR, self.LATENCY_DIR, self.DISK_DIR], [cpu, latency, diskio]):
-            # res_dir = os.path.join(self.workspace, self.TEMP_DIR, name, file_dir)
-            # self.__ssh_exec_command(f"mkdir -p {res_dir}")
             # For each server machine
             for id, server in enumerate(self.servers):
                 file_name = f"{file_type}{id}.{format}"
                 # Transfer reports to the remote host
                 self.__transfer_report(machine=server, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
-                # Delete reports on the servers
-                # if is_delete_reports:
-                #     self.__ssh_exec_command(f"ssh db-under@{server} 'rm -f {file_name}'", 
-                #                             going_msg=f"Deleting report '{file_name}' on servers...", 
-                #                             finished_msg=f"Deleted seport '{file_name}' on servers", 
-                #                             error_msg=f"Failed to delete report '{file_name}' on servers")
 
     def move_stats(self, name: str, is_delete_reports: bool=False) -> None:
         """
@@ -713,9 +688,9 @@ class DBRunner(BaseClass):
         cmd = "path='" + autobener_reports_dir + "'; \
               target='" + reports_dir + "'; \
               new_name='" + stats_reports_dir + "'; \
-              latest_date=`ls -t ${path} | head -1`; echo $latest_date; \
-              latest_time=`ls -t ${path}/${latest_date} | head -1`; echo $latest_time; \
-              mkdir -p $target; " + operation
+              latest_date=`ls -t ${path} | head -1`; \
+              latest_time=`ls -t ${path}/${latest_date} | head -1`; \
+              mkdir -p $target; " + operation + "echo -e \"Move stats from ${latest_date}/${latest_time}\";"
         
         self.__ssh_exec_command(cmd, 
                                 going_msg=f"Moving stats '{reports_dir}' on host...", 
