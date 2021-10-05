@@ -33,6 +33,8 @@ class DBRunner(BaseClass):
     CPU_DIR = 'cpu'
     DISK_DIR = 'disk'
     LATENCY_DIR = 'latency'
+    NETWORKIN_DIR = 'networkin'
+    NETWORKOUT_DIR = 'networkout'
     
     # Name of database
     DB_NAME = 'hermes'
@@ -58,6 +60,8 @@ class DBRunner(BaseClass):
 
     # Reports
     REPORTS_ON_HOST_DIR = 'reports'
+    AUTOBENCHER_REPORTS_DIR = 'reports'
+    NEW_NAME_OF_AUTOBENCHER_STATISTICS = 'stats'
     
     def __init__(self, workspace: str="db_runner_workspace") -> None:
         """
@@ -598,17 +602,20 @@ class DBRunner(BaseClass):
                         dependency: str='transaction-dependencies',
                         cpu: str='transaction-cpu-time-server-', 
                         latency: str='transaction-latency-server-', 
-                        diskio: str='transaction-diskio-count-server-', format: str='csv', is_delete_reports: bool=False) -> None:
+                        diskio: str='transaction-diskio-count-server-', 
+                        networkin: str='transaction-networkin-size-server-',
+                        networkout: str='transaction-networkout-size-server-', is_delete_reports: bool=False) -> None:
         """
         Collect the reports on the servers and sequencer and transfer them to the host
 
-        :param str reports_path: The download path of the reports on the local host
+        :param str name: The download path of the reports under the DBRunner workspace of the remote host
         :param str feature: The name of the transaction-features report
         :param str dependency: The name of the transaction-dependencies report
         :param str cpu: The name of the transaction-cpu-time reports
         :param str latency: The name of the transaction-latency reports
         :param str diskio: The name of the transaction-diskio-count reports
-        :param str format: The format of reports
+        :param str networkin: The name of the transaction-networkin-size reports
+        :param str networkout: The name of the transaction-networkout-size reports
         :param bool is_delete_reports: Whether to delete the reports on the server and the sequencer
         """
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
@@ -617,7 +624,8 @@ class DBRunner(BaseClass):
         self.__type_check(obj=cpu, obj_type=str, obj_name='cpu', is_allow_none=False)
         self.__type_check(obj=latency, obj_type=str, obj_name='latency', is_allow_none=False)
         self.__type_check(obj=diskio, obj_type=str, obj_name='diskio', is_allow_none=False)
-        self.__type_check(obj=format, obj_type=str, obj_name='format', is_allow_none=False)
+        self.__type_check(obj=networkin, obj_type=str, obj_name='networkin', is_allow_none=False)
+        self.__type_check(obj=networkout, obj_type=str, obj_name='networkout', is_allow_none=False)
         self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
 
         # Create directory
@@ -625,18 +633,18 @@ class DBRunner(BaseClass):
         self.__ssh_exec_command(f"mkdir -p {res_dir}")
 
         # For feature reports
-        file_name = f"{feature}.{format}"
+        file_name = f"{feature}.csv"
         self.__transfer_report(machine=self.sequencer, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
 
         # For dependency reports
-        file_name = f"{dependency}.{format}"
+        file_name = f"{dependency}.txt"
         self.__transfer_report(machine=self.sequencer, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
 
         # For each type of reports
-        for file_dir, file_type in zip([self.CPU_DIR, self.LATENCY_DIR, self.DISK_DIR], [cpu, latency, diskio]):
+        for file_dir, file_type in zip([self.CPU_DIR, self.LATENCY_DIR, self.DISK_DIR, self.NETWORKIN_DIR, self.NETWORKOUT_DIR], [cpu, latency, diskio, networkin, networkout]):
             # For each server machine
             for id, server in enumerate(self.servers):
-                file_name = f"{file_type}{id}.{format}"
+                file_name = f"{file_type}{id}.csv"
                 # Transfer reports to the remote host
                 self.__transfer_report(machine=server, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
 
@@ -650,13 +658,15 @@ class DBRunner(BaseClass):
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
         self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
 
-        autobener_reports_dir = os.path.join(self.dbrunner_autobencher_path, 'reports')
+        autobener_reports_dir = os.path.join(self.dbrunner_autobencher_path, self.AUTOBENCHER_REPORTS_DIR)
         reports_dir = os.path.join(self.dbrunner_temp_path, name)
-        stats_reports_dir = os.path.join(reports_dir, 'stats')
+        stats_reports_dir = os.path.join(reports_dir, self.NEW_NAME_OF_AUTOBENCHER_STATISTICS)
 
         if is_delete_reports:
+            # Move statistics reports generatted by autobencher to stats_reports_dir
             operation = "mv $path/$latest_date/$latest_time $new_name;"
         else:
+            # Copy statistics reports generatted by autobencher
             operation = "cp -r $path/$latest_date/$latest_time $target; mv $target/$latest_time $new_name;"
 
         cmd = "path='" + autobener_reports_dir + "'; \
