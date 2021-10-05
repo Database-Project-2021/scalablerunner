@@ -34,13 +34,12 @@ class DBRunner(BaseClass):
     JDK_DEFAULT_DIR = '/opt/shared/jdk-8u211-linux-x64.tar.gz'
 
     # Some folders under DBRunner
-    # WORKSPACE = f"db_runner_workspace"
-    # DBRUNNER_AUTOBENHER_PATH = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
     TEMP_DIR = 'temp'
     CPU_DIR = 'cpu'
     DISK_DIR = 'disk'
     LATENCY_DIR = 'latency'
-    # DBRUNNER_TEMP_PATH = os.path.join(WORKSPACE, TEMP_DIR)
+    NETWORKIN_DIR = 'networkin'
+    NETWORKOUT_DIR = 'networkout'
     
     # Name of database
     DB_NAME = 'hermes'
@@ -64,14 +63,10 @@ class DBRunner(BaseClass):
     DICT = 'dict'
     TOML = 'toml'
 
-    # Directory of configs on DB-Runner
-    # DBRUNNER_CONFIG_DIR = os.path.join(WORKSPACE, AUTOBENCHER_NAME)
-    # DBRUNNER_BENCHER_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, BENCHER_CONFIG)
-    # DBRUNNER_LOAD_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, LOAD_CONFIG)
-    # DBRUNNER_BENCH_CONFIG_PATH = os.path.join(DBRUNNER_CONFIG_DIR, BENCH_CONFIG)
-
     # Reports
     REPORTS_ON_HOST_DIR = 'reports'
+    AUTOBENCHER_REPORTS_DIR = 'reports'
+    NEW_NAME_OF_AUTOBENCHER_STATISTICS = 'stats'
     
     def __init__(self, workspace: str="db_runner_workspace") -> None:
         """
@@ -301,14 +296,6 @@ class DBRunner(BaseClass):
         """
         Close the connection to ``Auto-Bencher`` host.
         """
-        # try:
-        #     self.__info(f"Closing the remote host")
-        #     self.host.close(retry_count=self.RETRY_COUNT)
-        #     self.__info(f"Closed to remote host")
-        # except:
-        #     self.__error(f"Failed to close remote host")
-        #     traceback.print_exc()
-        
         self.__client_exec(fn_name='close', going_msg=f"Closing the remote host", finished_msg=f"Closed to remote host", error_msg=f"Failed to close remote host")
 
     def config_bencher(self, sequencer: str=None, servers: list=None, clients: list=None, 
@@ -641,17 +628,20 @@ class DBRunner(BaseClass):
                         dependency: str='transaction-dependencies',
                         cpu: str='transaction-cpu-time-server-', 
                         latency: str='transaction-latency-server-', 
-                        diskio: str='transaction-diskio-count-server-', format: str='csv', is_delete_reports: bool=False) -> None:
+                        diskio: str='transaction-diskio-count-server-', 
+                        networkin: str='transaction-networkin-size-server-',
+                        networkout: str='transaction-networkout-size-server-', is_delete_reports: bool=False) -> None:
         """
         Collect the reports on the servers and sequencer and transfer them to the host
 
-        :param str reports_path: The download path of the reports on the local host
+        :param str name: The download path of the reports under the DBRunner workspace of the remote host
         :param str feature: The name of the transaction-features report
         :param str dependency: The name of the transaction-dependencies report
         :param str cpu: The name of the transaction-cpu-time reports
         :param str latency: The name of the transaction-latency reports
         :param str diskio: The name of the transaction-diskio-count reports
-        :param str format: The format of reports
+        :param str networkin: The name of the transaction-networkin-size reports
+        :param str networkout: The name of the transaction-networkout-size reports
         :param bool is_delete_reports: Whether to delete the reports on the server and the sequencer
         """
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
@@ -660,7 +650,8 @@ class DBRunner(BaseClass):
         self.__type_check(obj=cpu, obj_type=str, obj_name='cpu', is_allow_none=False)
         self.__type_check(obj=latency, obj_type=str, obj_name='latency', is_allow_none=False)
         self.__type_check(obj=diskio, obj_type=str, obj_name='diskio', is_allow_none=False)
-        self.__type_check(obj=format, obj_type=str, obj_name='format', is_allow_none=False)
+        self.__type_check(obj=networkin, obj_type=str, obj_name='networkin', is_allow_none=False)
+        self.__type_check(obj=networkout, obj_type=str, obj_name='networkout', is_allow_none=False)
         self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
 
         # Create directory
@@ -668,28 +659,20 @@ class DBRunner(BaseClass):
         self.__ssh_exec_command(f"mkdir -p {res_dir}")
 
         # For feature reports
-        file_name = f"{feature}.{format}"
+        file_name = f"{feature}.csv"
         self.__transfer_report(machine=self.sequencer, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
 
         # For dependency reports
-        file_name = f"{dependency}.{format}"
+        file_name = f"{dependency}.txt"
         self.__transfer_report(machine=self.sequencer, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
 
         # For each type of reports
-        for file_dir, file_type in zip([self.CPU_DIR, self.LATENCY_DIR, self.DISK_DIR], [cpu, latency, diskio]):
-            # res_dir = os.path.join(self.workspace, self.TEMP_DIR, name, file_dir)
-            # self.__ssh_exec_command(f"mkdir -p {res_dir}")
+        for file_dir, file_type in zip([self.CPU_DIR, self.LATENCY_DIR, self.DISK_DIR, self.NETWORKIN_DIR, self.NETWORKOUT_DIR], [cpu, latency, diskio, networkin, networkout]):
             # For each server machine
             for id, server in enumerate(self.servers):
-                file_name = f"{file_type}{id}.{format}"
+                file_name = f"{file_type}{id}.csv"
                 # Transfer reports to the remote host
                 self.__transfer_report(machine=server, file_name=file_name, res_dir=res_dir, is_delete_reports=is_delete_reports)
-                # Delete reports on the servers
-                # if is_delete_reports:
-                #     self.__ssh_exec_command(f"ssh db-under@{server} 'rm -f {file_name}'", 
-                #                             going_msg=f"Deleting report '{file_name}' on servers...", 
-                #                             finished_msg=f"Deleted seport '{file_name}' on servers", 
-                #                             error_msg=f"Failed to delete report '{file_name}' on servers")
 
     def move_stats(self, name: str, is_delete_reports: bool=False) -> None:
         """
@@ -701,21 +684,23 @@ class DBRunner(BaseClass):
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
         self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
 
-        autobener_reports_dir = os.path.join(self.dbrunner_autobencher_path, 'reports')
+        autobener_reports_dir = os.path.join(self.dbrunner_autobencher_path, self.AUTOBENCHER_REPORTS_DIR)
         reports_dir = os.path.join(self.dbrunner_temp_path, name)
-        stats_reports_dir = os.path.join(reports_dir, 'stats')
+        stats_reports_dir = os.path.join(reports_dir, self.NEW_NAME_OF_AUTOBENCHER_STATISTICS)
 
         if is_delete_reports:
+            # Move statistics reports generatted by autobencher to stats_reports_dir
             operation = "mv $path/$latest_date/$latest_time $new_name;"
         else:
+            # Copy statistics reports generatted by autobencher
             operation = "cp -r $path/$latest_date/$latest_time $target; mv $target/$latest_time $new_name;"
 
         cmd = "path='" + autobener_reports_dir + "'; \
               target='" + reports_dir + "'; \
               new_name='" + stats_reports_dir + "'; \
-              latest_date=`ls -t ${path} | head -1`; echo $latest_date; \
-              latest_time=`ls -t ${path}/${latest_date} | head -1`; echo $latest_time; \
-              mkdir -p $target; " + operation
+              latest_date=`ls -t ${path} | head -1`; \
+              latest_time=`ls -t ${path}/${latest_date} | head -1`; \
+              mkdir -p $target; " + operation + "echo -e \"Move stats from ${latest_date}/${latest_time}\";"
         
         self.__ssh_exec_command(cmd, 
                                 going_msg=f"Moving stats '{reports_dir}' on host...", 

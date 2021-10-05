@@ -1,6 +1,7 @@
 import logging
 import os
 import io
+from typing import List, Tuple
 import unittest
 import traceback
 from time import sleep
@@ -19,17 +20,18 @@ from scalablerunner.taskrunner import TaskRunner
 #                     level=logging.DEBUG)
 
 # Global variables
+temp_dir = 'temp'
 host_infos_file = 'host_infos.toml'
+test_log = 'test.log'
 
-def get_temp_dir():
+def get_temp_dir() -> str:
     # Create 'temp' directory
-    temp_dir = 'temp'
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
 
     return temp_dir
 
-def get_host_infos():
+def get_host_infos() -> Tuple[str, str, str, str]:
     config = toml.load(host_infos_file)
 
     hostname = str(config['hostname'])
@@ -39,6 +41,20 @@ def get_host_infos():
     print(f"[Test] Hostname: {info(hostname)} | Username: {(info(username))} | Password: {info(password)} | Port: {info(str(port))}")
 
     return hostname, username, password, port
+
+def get_server_infos() -> Tuple[str, List[str], List[str], str]:
+    config = toml.load(host_infos_file)
+
+    sequencer = str(config['sequencer'])
+    servers = config['servers']
+    clients = config['clients']
+    package_path = config['package_path']
+    print(f"[Test] Sequencer: {info(sequencer)} | Servers: {(info(', '.join(servers)))} | Clients: {info(', '.join(clients))} | Package Path: {info(package_path)}")
+
+    return sequencer, servers, clients, package_path
+
+def get_log_path() -> str:
+    return os.path.join(get_temp_dir(), test_log)
 
 class TestUtil(unittest.TestCase):
     def test_info(self):
@@ -73,7 +89,7 @@ class TestSSH(unittest.TestCase):
         # Get host infos
         self.HOSTNAME, self.USERNAME, self.PASSWORD, self.PORT = get_host_infos()
         self.client = SSH(hostname=self.HOSTNAME, username=self.USERNAME, password=self.PASSWORD, port=self.PORT)
-        self.client.output_log(file_name='temp/test.log')
+        self.client.output_log(file_name=get_log_path())
         # self.client.set_default_is_raise_err(default_is_raise_err=self.DEFAULT_IS_RAISE_ERR)
 
     def __info(self, *args, **kwargs) -> None:
@@ -233,7 +249,7 @@ class TestSSH(unittest.TestCase):
             self.client.get(local_path=get_temp_dir(), remote_path='./server.jar', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
             self.client.get(local_path=get_temp_dir(), remote_path='./server.jar', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
 
-def test_run(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):
+def test_task(epoch :int, decay: str, machine: int, gpu: int, dataset_size: int):
     import os
     import jax.numpy as np
     os.environ["CUDA_VISIBLE_DEVICES"] = f'{gpu}'
@@ -251,7 +267,7 @@ class TestTaskRunner(unittest.TestCase):
         config = {
             'section-1': { # Each section would be executed sequentially.
                 'group-1': { # The groups under the same section would be executed concurrently
-                    'Call': test_run, # Call can be either a function call or a command in string
+                    'Call': test_task, # Call can be either a function call or a command in string
                     'Param': { # The TaskRunner would list all kinds of combination of the parameters and execute them once
                         'decay': ['exp', 'anneal', 'static'],
                         'epoch': [100, 1000, 10000],
@@ -320,14 +336,15 @@ class TestTaskRunner(unittest.TestCase):
         }
         
         tr = TaskRunner(config=config, delay=0.5)
-        tr.output_log(file_name='temp/test.log')
+        tr.output_log(file_name=get_log_path())
         tr.run()
 
 def config_db_runner(db_runner: DBRunner) -> DBRunner:
-    db_runner.config_bencher(sequencer="192.168.1.32", 
-                             servers=["192.168.1.31", "192.168.1.30", "192.168.1.27", "192.168.1.26"], 
-                             clients=["192.168.1.9", "192.168.1.8"], 
-                             package_path='/home/db-under/sychou/autobench/package/jdk-8u211-linux-x64.tar.gz')
+    sequencer, servers, clients, package_path = get_server_infos()
+    db_runner.config_bencher(sequencer=sequencer, 
+                             servers=servers, 
+                             clients=clients, 
+                             package_path=package_path)
     db_runner.config_cluster(server_count=4, jar_dir='latest')
     return db_runner
 
@@ -391,7 +408,7 @@ class TestDBRunner(unittest.TestCase):
         self.HOSTNAME, self.USERNAME, self.PASSWORD, self.PORT = get_host_infos()
 
         self.dr = DBRunner(workspace=get_workspace_name())
-        self.dr.output_log(file_name='temp/test.log')
+        self.dr.output_log(file_name=get_log_path())
     
     @classmethod
     def setUpClass(cls):
@@ -493,9 +510,11 @@ def suite():
     
     # Test SSH
     suite.addTest(TestSSH('test_connect'))
+    suite.addTest(TestSSH('test_set_default_is_raise_err'))
     suite.addTest(TestSSH('test_exec_command'))
     suite.addTest(TestSSH('test_put'))
     suite.addTest(TestSSH('test_putfo'))
+    suite.addTest(TestSSH('test_large_put'))
     suite.addTest(TestSSH('test_get'))
 
     # Test TaskRunner
