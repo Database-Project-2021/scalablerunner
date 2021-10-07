@@ -55,6 +55,14 @@ Or even only test on specific function, like ``scalablerunner.SSH.put``, you can
 python -m unittest tests.test_all.TestSSH.test_put
 ```
 
+## TODOs
+
+- [ ] Check whether ``stats`` folder exist or not before moving
+- [ ] Add function to process the report and generate ``.pickle`` with ``cost-estimator``
+- [ ] Fix ``scp.get`` bug that it cannot download file to share-disk2
+- [ ] Make an adapter integrate ``DBRunner`` and ``TaskRunner``
+- [ ] Make ``TaskRunner`` can execute task on remote machine with RPC like ``rpyc``
+
 ## TaskRunner
 
 ### Example Code
