@@ -47,8 +47,10 @@ def name_fn_mmg(reports_path: str, alts: dict):
 
 class PopCat(BaseClass):
     YCSB = 0
-    def __init__(self, reports_path: str, bench_type: str, workspace: str, log_file: str=None):
+    TPCC = 1
+    def __init__(self, reports_path: str, report_dest: str, bench_type: str, workspace: str, log_file: str=None):
         self.reports_path = reports_path
+        self.report_dest = report_dest
         self.bench_type = bench_type
         self.dr = DBRunner(workspace)
         if log_file is not None:
@@ -94,6 +96,13 @@ class PopCat(BaseClass):
         rp_path = name_fn(reports_path=self.reports_path, alts=alts)
         self.dr.bench(is_kill_java=True, reports_path=rp_path, alts=alts, base_config=base_config)
         self.close()
+
+        # Fix bug temporary
+        dest_rp_path = name_fn(reports_path=self.report_dest, alts=alts)
+        current_file_path = os.path.dirname(os.path.abspath(__file__))
+        cmd = f'cd {current_file_path}; mv {rp_path} {dest_rp_path};'
+        print(cmd)
+        os.system(cmd)
 
     def __remote_estimator(self):
         """
@@ -182,8 +191,8 @@ cw = {
 # }
 
 package_path = '/home/db-under/sychou/autobench/package/jdk-8u211-linux-x64.tar.gz'
-server_jar = 'data/jars/server.jar'
-client_jar = 'data/jars/client.jar'
+server_jar = 'temp/jars/server.jar'
+client_jar = 'temp/jars/client.jar'
 # server_count = 4
 # load_alts = {
 #                 'elasqlbench': {
@@ -192,8 +201,15 @@ client_jar = 'data/jars/client.jar'
 #             }
 
 if __name__ == '__main__':
-    for i in range(1, 5, 1):
-        pc = PopCat(reports_path=f'temp/betterRTE/round{i}', bench_type=PopCat.YCSB, workspace=cw['workspace'], log_file='temp/betterRTE/betterRTE.log')
+    dest_base_path = '/opt/shared-disk2/db_betterRTE_ver2'
+    base_path = 'temp/betterRTE'
+    log_file = 'temp/betterRTE/betterRTE.log'
+    num_round = 3
+    
+    # MMT
+    for i in range(0, num_round, 1):
+        pc = PopCat(reports_path=os.path.join(base_path, f'round{i}', 'mmt'), report_dest=os.path.join(dest_base_path, f'round{i}', 'mmt'), 
+                    bench_type=PopCat.TPCC, workspace=cw['workspace'], log_file=log_file)
         pc.config(server_count=4, sequencer=cw['sequencer'], servers=cw['servers'], clients=cw['clients'])
 
         # pc.init_load(server_jar=server_jar, client_jar=server_jar, alts=cw['load_alts'][0], base_config=cw['load_base_config'][0])
@@ -220,7 +236,19 @@ if __name__ == '__main__':
                         'base_config': cw['bench_base_config_mmt']
                     }
                 },
-            },
+            }
+        }
+
+        tr = TaskRunner(config=config)
+        tr.run()
+
+    # MMG
+    for i in range(0, num_round, 1):
+        pc = PopCat(reports_path=os.path.join(base_path, f'round{i}', 'mmg'), report_dest=os.path.join(dest_base_path, f'round{i}', 'mmg'), 
+                    bench_type=PopCat.YCSB, workspace=cw['workspace'], log_file=log_file)
+        pc.config(server_count=4, sequencer=cw['sequencer'], servers=cw['servers'], clients=cw['clients'])
+
+        config_mmg = {
             'Section Initialize | 4 server | MMG': {
                 'Group CW': {
                     'Call': pc.init_load,
