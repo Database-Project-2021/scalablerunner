@@ -186,6 +186,10 @@ class DBRunner(BaseClass):
     def __scp_get(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
         self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
                            remote_path=remote_path, local_path=local_path, recursive=recursive)
+    
+    def __get_stable(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
+        self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
+                           remote_path=remote_path, local_path=local_path, recursive=recursive, mode=SSH.STABLE)
 
     def __large_put(self, files: str, remote_path: str, recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
         self.__client_exec(fn_name='large_put', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
@@ -682,7 +686,7 @@ class DBRunner(BaseClass):
                                 error_msg=f"Failed to move stats '{reports_dir}' on host")
 
 
-    def pull_reports_to_local(self, name: str, path: str, is_delete_reports: bool=False) -> None:
+    def pull_reports_to_local(self, name: str, path: str, is_delete_reports: bool=False, use_stable=False) -> None:
         """
         Download the reports on the host to the local
 
@@ -693,13 +697,20 @@ class DBRunner(BaseClass):
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
         self.__type_check(obj=path, obj_type=str, obj_name='path', is_allow_none=False)
         self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
+        self.__type_check(obj=use_stable, obj_type=bool, obj_name='use_stable', is_allow_none=False)
 
         reports_dir = os.path.join(self.dbrunner_temp_path, name)
 
-        self.__scp_get(remote_path=reports_dir, local_path=path, recursive=True, 
-                       going_msg=f"Pulling reports '{name}' to local '{path}'...", 
-                       finished_msg=f"Pulled reports '{name}' to local '{path}'", 
-                       error_msg=f"Failed to pull reports '{name}' to local '{path}'")
+        if use_stable:
+            self.__get_stable(remote_path=reports_dir, local_path=path, recursive=True, 
+                              going_msg=f"Pulling reports '{name}' to local '{path}'...", 
+                              finished_msg=f"Pulled reports '{name}' to local '{path}'", 
+                              error_msg=f"Failed to pull reports '{name}' to local '{path}'")
+        else:
+            self.__scp_get(remote_path=reports_dir, local_path=path, recursive=True, 
+                           going_msg=f"Pulling reports '{name}' to local '{path}'...", 
+                           finished_msg=f"Pulled reports '{name}' to local '{path}'", 
+                           error_msg=f"Failed to pull reports '{name}' to local '{path}'")
 
         if is_delete_reports:
             self.__ssh_exec_command(f"rm -rf {reports_dir}", 

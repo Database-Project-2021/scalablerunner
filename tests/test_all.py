@@ -243,7 +243,10 @@ class TestSSH(unittest.TestCase):
 
     def test_get(self):
         for i in range(self.TEST_LOOP_COUNT):
-            self.client.get(local_path=get_temp_dir(), remote_path='./server.jar', recursive=False, preserve_times=False, retry_count=3)
+            self.client.get(local_path='/opt/shared-disk2/sychou/', remote_path='./server.jar', recursive=False, preserve_times=False, retry_count=3)
+
+            self.client.get(local_path='/opt/shared-disk2/sychou', remote_path='./db_runner_workspace_cw/auto-bencher/src', recursive=True, mode=SSH.STABLE)
+            self.client.get(local_path='/opt/shared-disk2/sychou', remote_path='./db_runner_workspace_cw/auto-bencher/src', recursive=True, mode=SSH.SFTP)
 
         for i in range(self.TEST_LOOP_COUNT // 2):
             self.client.get(local_path=get_temp_dir(), remote_path='./server.jar', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)

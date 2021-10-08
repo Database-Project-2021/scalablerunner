@@ -1,9 +1,12 @@
 from enum import Enum, auto
+import os
+import sys
 from time import sleep
 import time
 import traceback
 from typing import Tuple
 import socket
+from stat import S_IMODE, S_ISDIR, S_ISREG
 
 import paramiko
 from scp import SCPClient
@@ -36,6 +39,11 @@ class SSH(BaseClass):
     DEFAULT_IS_RAISE_ERR = False
     DEFAULT_RETRY_COUNT = 3
     DEFAULT_TIMEOUT = None # 15 mins
+
+    # Type of file transfer
+    STABLE = 'stable'
+    SCP = 'scp'
+    SFTP = 'SFTP'
 
     def __init__(self, hostname: str, username: str=None, password: str=None, port: int=22) -> None:
         """
@@ -449,9 +457,102 @@ class SSH(BaseClass):
                                   retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
                                   fl=fl, remote_path=remote_path, mode=mode, size=size)
 
-    def get(self, remote_path: str, local_path: str='', recursive: bool=False, preserve_times: bool=False, retry_count: int=None, is_raise_err: int=None):
+    def __recursive_get(self, remote_path: str, local_path: str, fn_transfer: callable, **kwargs):
         """
-        Transfer files and directories from remote host to localhost. It's an wrapper of [scp.SCPClient.get](https://github.com/jbardin/scp.py/blob/master/scp.py#L216)
+        Traverse the ``remote_path`` recursively and copy the whole folder of ``remote_path`` to ``local_path``. 
+            Refers to [StackOverflow](https://stackoverflow.com/questions/56268940/sftp-copy-download-all-files-in-a-folder-recursively-from-remote-server)
+
+        :param str remote_path: path to retrieve from remote host. since this is
+            evaluated by scp on the remote host, shell wildcards and
+            environment variables may be used.
+        :param str local_path: path in which to receive files locally
+        :param callable fn_transfer: the callable function that can transfer remote file to local and it should be in the form of 
+            ``fn_transfer(remote_file, local_file)``
+        """
+        # Make root directory of the folder on the local host
+        remote_dir_name = os.path.basename(remote_path)
+        local_dir_path = os.path.join(local_path, remote_dir_name)
+        if not os.path.exists(local_dir_path):
+            os.mkdir(local_dir_path)
+
+        def recursive_traverse(remote_path_fn, local_dir_path_fn):
+            # Traverse the directory recursively and transfer
+            for entry in self.sftpClient.listdir(remote_path_fn):
+                # Traverse each entry
+                entry_remote_path = os.path.join(remote_path_fn, entry)
+                entry_local_path = os.path.join(local_dir_path_fn, entry)
+                # Get the type of the entry
+                mode = self.sftpClient.stat(entry_remote_path).st_mode
+                if S_ISDIR(mode):
+                    # Handle folder
+                    try:
+                        if not os.path.exists(entry_local_path):
+                            os.mkdir(entry_local_path)
+                    except OSError:     
+                        pass
+                    # Traverse the deeper folder
+                    recursive_traverse(entry_remote_path, entry_local_path)
+                elif S_ISREG(mode):
+                    # Handle file
+                    fn_transfer(entry_remote_path, entry_local_path, **kwargs)
+
+        recursive_traverse(remote_path_fn=remote_path, local_dir_path_fn=local_dir_path)
+                
+    def _sftp_get_stable(self, remote_path: str, local_path: str, recursive: bool) -> None:
+        """
+        It opens the file on the remote directly vis [paramiko.sftp_client.SFTPClient.file](http://docs.paramiko.org/en/stable/api/sftp.html#paramiko.sftp_client.SFTPClient.file) 
+            and transfer the whole file object. In our experience, this way is more stable and less error than other 2 ways.
+
+        :param str remote_path: path to retrieve from remote host. since this is
+            evaluated by scp on the remote host, shell wildcards and
+            environment variables may be used.
+        :param str local_path: path in which to receive files locally
+        :param bool recursive: transfer files and directories recursively
+        """
+        def fn_transfer(remote_path_fn, local_path_fn):
+            with self.sftpClient.file(remote_path_fn, mode='rb') as rem_file:
+                rem_file.MAX_REQUEST_SIZE = 1024
+                with open(local_path_fn, 'wb') as f:
+                    f.write(rem_file.read())
+                print("(%s:%s) %s done"%(self.hostname, self.port, remote_path_fn))
+
+        if recursive:
+            self.__recursive_get(remote_path=remote_path, local_path=local_path, fn_transfer=fn_transfer)
+        else:
+            fn_transfer(remote_path_fn=remote_path, local_path_fn=local_path)
+
+    def _sftp_get(self, remote_path: str, local_path: str, recursive: bool) -> None:
+        """
+        It's an wrapper of [paramiko.sftp_client.SFTPClient.get](https://github.com/jbardin/scp.py/blob/master/scp.py#L216) 
+            and we also support transfering a nested folder by setting the parameter ``recursive`` as ``True``.
+
+        :param str remote_path: path to retrieve from remote host. since this is
+            evaluated by scp on the remote host, shell wildcards and
+            environment variables may be used.
+        :param str local_path: path in which to receive files locally
+        :param bool recursive: transfer files and directories recursively
+        """
+        def fn_transfer(remote_path_fn, local_path_fn):
+            def progress(sent, size):
+                rate = float(sent)/float(size)
+                sys.stdout.write("(%s:%s) %s's progress: %.2f%%   \r" % (self.hostname, self.port, remote_path_fn, rate*100))
+                if rate >= 1:
+                    sys.stdout.write("\n")
+            self.sftpClient.get(remote_path_fn, local_path_fn, callback=progress)
+
+        if recursive:
+            self.__recursive_get(remote_path=remote_path, local_path=local_path, fn_transfer=fn_transfer)
+        else:
+            fn_transfer(remote_path_fn=remote_path, local_path_fn=local_path)
+
+    def get(self, remote_path: str, local_path: str='', recursive: bool=False, preserve_times: bool=False, mode: str='scp', retry_count: int=None, is_raise_err: int=None):
+        """
+        Transfer files and directories from remote host to localhost. There are 3 mode to transfer files: ``SSH.SCP``, ``SSH.STABLE``, ``SSH.SFTP``.
+        The mode ``SSH.SCP`` is an wrapper of [scp.SCPClient.get](https://github.com/jbardin/scp.py/blob/master/scp.py#L216)
+        The mode ``SSH.STABLE`` open the file on the remote directly vis [paramiko.sftp_client.SFTPClient.file](http://docs.paramiko.org/en/stable/api/sftp.html#paramiko.sftp_client.SFTPClient.file) 
+            and transfer the whole file object. In our experience, this way is more stable and less error than other 2 ways.
+        The mode ``SSH.SFTP`` is an wrapper of [paramiko.sftp_client.SFTPClient.get](https://github.com/jbardin/scp.py/blob/master/scp.py#L216) 
+            and we also support transfering a nested folder by setting the parameter ``recursive`` as ``True``.
 
         :param str remote_path: path to retrieve from remote host. since this is
             evaluated by scp on the remote host, shell wildcards and
@@ -460,6 +561,7 @@ class SSH(BaseClass):
         :param bool recursive: transfer files and directories recursively
         :param bool preserve_times: preserve mtime and atime of transferred files
             and directories.
+        :param str mode: the way to transfer the folder/files and there are 3 choices: ``SSH.SCP``(default), ``SSH.STABLE`` and ``SSH.SFTP``
         :param int retry_count: How many time of reconnection and redoing the command 
             while an connection error occurs, like SSH tunnel disconect accidently, session not active...
             If value is ``None``, use default retry-count.
@@ -471,14 +573,36 @@ class SSH(BaseClass):
         if self.scpClient is None:
             raise BaseException(f"Please establish a SSH connection at first.")
         
+        self.__type_check(obj=mode, obj_type=str, obj_name='mode', is_allow_none=True)
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
-        self.__retrying_execution(remote_type=RemoteType.SCP, fn_name='get', name=f"SCP get files from '{remote_path}' to '{local_path}'", 
-                                  retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
-                                  remote_path=remote_path, local_path=local_path, recursive=recursive, preserve_times=preserve_times)
+        if mode == self.STABLE:
+            remote_type = RemoteType.THIS
+            fn_name = '_sftp_get_stable'
+            name=f"STABLE-SFTP get files from '{remote_path}' to '{local_path}'"
 
-    def _custome_put(self, files: str, remote_path: str, recursive: bool) -> None:
+            self.__retrying_execution(remote_type=remote_type, fn_name=fn_name, name=name, 
+                                      retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
+                                      remote_path=remote_path, local_path=local_path, recursive=recursive)
+        elif mode == self.SFTP:
+            remote_type = RemoteType.THIS
+            fn_name = '_sftp_get'
+            name=f"SFTP get files from '{remote_path}' to '{local_path}'"
+
+            self.__retrying_execution(remote_type=remote_type, fn_name=fn_name, name=name, 
+                                      retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
+                                      remote_path=remote_path, local_path=local_path, recursive=recursive)
+        else:
+            remote_type = RemoteType.SCP
+            fn_name = 'get'
+            name=f"SCP get files from '{remote_path}' to '{local_path}'"
+
+            self.__retrying_execution(remote_type=remote_type, fn_name=fn_name, name=name, 
+                                      retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
+                                      remote_path=remote_path, local_path=local_path, recursive=recursive, preserve_times=preserve_times)
+
+    def _sftp_put_stable(self, files: str, remote_path: str, recursive: bool) -> None:
         """
         Transfer the *single* file to remote host. Trandfer the ``files`` to the file of the ``remote_path`` on the host.
         The recursive transmission is under construction.
@@ -515,6 +639,6 @@ class SSH(BaseClass):
         self.__type_check(obj=retry_count, obj_type=int, obj_name='retry_count', is_allow_none=True)
         self.__type_check(obj=is_raise_err, obj_type=bool, obj_name='is_raise_err', is_allow_none=True)
 
-        self.__retrying_execution(remote_type=RemoteType.THIS, fn_name='_custome_put', name=f"custome put files from '{files}' to '{remote_path}'", 
+        self.__retrying_execution(remote_type=RemoteType.THIS, fn_name='_sftp_put_stable', name=f"custome put files from '{files}' to '{remote_path}'", 
                                 retry_count=retry_count, is_raise_err=is_raise_err, is_show_success=True, 
                                 files=files, remote_path=remote_path, recursive=recursive)
