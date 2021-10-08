@@ -207,40 +207,40 @@ if __name__ == '__main__':
     num_round = 3
     
     # MMT
-    for i in range(0, num_round, 1):
-        pc = PopCat(reports_path=os.path.join(base_path, f'round{i}', 'mmt'), report_dest=os.path.join(dest_base_path, f'round{i}', 'mmt'), 
-                    bench_type=PopCat.TPCC, workspace=cw['workspace'], log_file=log_file)
-        pc.config(server_count=4, sequencer=cw['sequencer'], servers=cw['servers'], clients=cw['clients'])
+    # for i in range(0, num_round, 1):
+    #     pc = PopCat(reports_path=os.path.join(base_path, f'round{i}', 'mmt'), report_dest=os.path.join(dest_base_path, f'round{i}', 'mmt'), 
+    #                 bench_type=PopCat.TPCC, workspace=cw['workspace'], log_file=log_file)
+    #     pc.config(server_count=4, sequencer=cw['sequencer'], servers=cw['servers'], clients=cw['clients'])
 
-        # pc.init_load(server_jar=server_jar, client_jar=server_jar, alts=cw['load_alts'][0], base_config=cw['load_base_config'][0])
-        # pc.benchmark(name_fn=name_fn, alts=cw['bench_alts'][0], base_config=cw['bench_base_config'][0])
+    #     # pc.init_load(server_jar=server_jar, client_jar=server_jar, alts=cw['load_alts'][0], base_config=cw['load_base_config'][0])
+    #     # pc.benchmark(name_fn=name_fn, alts=cw['bench_alts'][0], base_config=cw['bench_base_config'][0])
 
-        config_mmt = {
-            'Section Initialize | 4 server | MMT': {
-                'Group CW': {
-                    'Call': pc.init_load,
-                    'Param': {
-                        'server_jar': [server_jar], 
-                        'client_jar': [client_jar],
-                        'alts': cw['load_alts'],
-                        'base_config': cw['load_base_config_mmt'],
-                    }
-                },
-            },
-            'Section Benchmark | 4 server | MMT': {
-                'Group CW': {
-                    'Call': pc.benchmark,
-                    'Param': {
-                        'name_fn': [name_fn_mmt],
-                        'alts': cw['bench_alts'],
-                        'base_config': cw['bench_base_config_mmt']
-                    }
-                },
-            }
-        }
+    #     config_mmt = {
+    #         'Section Initialize | 4 server | MMT': {
+    #             'Group CW': {
+    #                 'Call': pc.init_load,
+    #                 'Param': {
+    #                     'server_jar': [server_jar], 
+    #                     'client_jar': [client_jar],
+    #                     'alts': cw['load_alts'],
+    #                     'base_config': cw['load_base_config_mmt'],
+    #                 }
+    #             },
+    #         },
+    #         'Section Benchmark | 4 server | MMT': {
+    #             'Group CW': {
+    #                 'Call': pc.benchmark,
+    #                 'Param': {
+    #                     'name_fn': [name_fn_mmt],
+    #                     'alts': cw['bench_alts'],
+    #                     'base_config': cw['bench_base_config_mmt']
+    #                 }
+    #             },
+    #         }
+    #     }
 
-        tr = TaskRunner(config=config_mmt)
-        tr.run()
+    #     tr = TaskRunner(config=config_mmt)
+    #     tr.run()
 
     # MMG
     for i in range(0, num_round, 1):
