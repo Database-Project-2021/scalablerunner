@@ -215,7 +215,7 @@ if __name__ == '__main__':
         # pc.init_load(server_jar=server_jar, client_jar=server_jar, alts=cw['load_alts'][0], base_config=cw['load_base_config'][0])
         # pc.benchmark(name_fn=name_fn, alts=cw['bench_alts'][0], base_config=cw['bench_base_config'][0])
 
-        config = {
+        config_mmt = {
             'Section Initialize | 4 server | MMT': {
                 'Group CW': {
                     'Call': pc.init_load,
@@ -239,7 +239,7 @@ if __name__ == '__main__':
             }
         }
 
-        tr = TaskRunner(config=config)
+        tr = TaskRunner(config=config_mmt)
         tr.run()
 
     # MMG
@@ -272,5 +272,5 @@ if __name__ == '__main__':
             }
         }
 
-        tr = TaskRunner(config=config)
+        tr = TaskRunner(config=config_mmg)
         tr.run()
