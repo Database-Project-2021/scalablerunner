@@ -487,10 +487,10 @@ class TestDBRunner(unittest.TestCase):
             self.dr.load(alts=self.ARGS_LOAD, is_kill_java=True)
             for i in range(1):
                 self.dr.bench(reports_path=get_temp_dir(), alts=self.ARGS_BENCH, is_pull_reports=True, is_delete_reports=True, 
-                              is_kill_java=True)
+                              is_kill_java=True, use_stable=False)
 
             self.dr.bench(reports_path=get_temp_dir(), alts=self.ARGS_BENCH, is_pull_reports=False, is_delete_reports=False, 
-                          is_kill_java=True)
+                          is_kill_java=True, use_stable=True)
 
             # Check configuration bench.toml
             assert self.dr.get_bench_config(format=DBRunner.DICT)[self.ELASQLBENCH_NAME][self.INIT_RECORD_PER_PART_NAME] == self.INIT_RECORD_PER_PART

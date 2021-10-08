@@ -693,6 +693,7 @@ class DBRunner(BaseClass):
         :param str name: The directory name of the reports
         :param str path: The download path on the local host
         :param bool is_delete_reports: Whether to delete the reports on the remote host
+        :param bool use_stable: Determibe whether to use ``SSH.STABLE`` or not, the default value is ``False``, using ``SSH.SP``
         """
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
         self.__type_check(obj=path, obj_type=str, obj_name='path', is_allow_none=False)
@@ -718,7 +719,7 @@ class DBRunner(BaseClass):
                                     finished_msg=f"Deleted reports '{reports_dir}' on host", 
                                     error_msg=f"Failed to delete reports '{reports_dir}' on host")
 
-    def bench(self, reports_path: str, alts: dict=None, base_config: str=None, is_pull_reports: bool=True, is_delete_reports: bool=True, is_kill_java: bool=True) -> Tuple:
+    def bench(self, reports_path: str, alts: dict=None, base_config: str=None, is_pull_reports: bool=True, is_delete_reports: bool=True, is_kill_java: bool=True, use_stable=False) -> Tuple:
         """
         Run Benchmark
 
@@ -726,6 +727,7 @@ class DBRunner(BaseClass):
         :param dict alts: The modification would be applied to ``base_config``
         :param str base_config: The path of the load-config for Auto-Bencher and it would be modified by ``alts``
         :param bool is_delete_reports: Whether to delete the reports on the server, sequencer, and the remote host
+        :param bool use_stable: Determibe whether to use ``SSH.STABLE`` or not, the default value is ``False``, using ``SSH.SP``
         :return: A tupel contains the standard input/output/error stream after executing the command. 
         :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
@@ -755,7 +757,7 @@ class DBRunner(BaseClass):
         if is_pull_reports:
             self.collect_results(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
             self.move_stats(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
-            self.pull_reports_to_local(name=self.REPORTS_ON_HOST_DIR, path=reports_path, is_delete_reports=is_delete_reports)
+            self.pull_reports_to_local(name=self.REPORTS_ON_HOST_DIR, path=reports_path, is_delete_reports=is_delete_reports, use_stable=use_stable)
             
         # Kill JAVA processes
         if is_kill_java:
