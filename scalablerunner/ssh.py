@@ -510,11 +510,33 @@ class SSH(BaseClass):
         :param bool recursive: transfer files and directories recursively
         """
         def fn_transfer(remote_path_fn, local_path_fn):
+            def progress(sent, size):
+                rate = float(sent)/float(size)
+                is_finished = False
+                if rate >= 1:
+                    is_finished = True
+                    rate = 1.00
+                sys.stdout.write("(%s:%s) %s's progress: %.2f%%   \r" % (self.hostname, self.port, remote_path_fn, rate*100))
+                if is_finished:
+                    sys.stdout.write("\n")
+
             with self.sftpClient.file(remote_path_fn, mode='rb') as rem_file:
                 rem_file.MAX_REQUEST_SIZE = 1024
-                with open(local_path_fn, 'wb') as f:
-                    f.write(rem_file.read())
-                print("(%s:%s) %s done"%(self.hostname, self.port, remote_path_fn))
+                chunck_size = 4096
+                local_file_path = local_path_fn
+                # if os.path.isfile(local_path_fn):
+                #     remote_file_name = os.path.basename(remote_path_fn)
+                #     local_file_path = os.path.join(local_path_fn, remote_file_name)
+                with open(local_file_path, 'wb') as f:
+                    # f.write(rem_file.read())
+                    size = self.sftpClient.stat(remote_path_fn).st_size
+                    sent = 0
+                    byte = rem_file.read(chunck_size)
+                    while byte != b"":
+                        f.write(byte)
+                        byte = rem_file.read(chunck_size)
+                        sent += chunck_size
+                        progress(sent, size)
 
         if recursive:
             self.__recursive_get(remote_path=remote_path, local_path=local_path, fn_transfer=fn_transfer)

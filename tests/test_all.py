@@ -248,6 +248,9 @@ class TestSSH(unittest.TestCase):
             self.client.get(local_path='/opt/shared-disk2/sychou', remote_path='./db_runner_workspace_cw/auto-bencher/src', recursive=True, mode=SSH.STABLE)
             self.client.get(local_path='/opt/shared-disk2/sychou', remote_path='./db_runner_workspace_cw/auto-bencher/src', recursive=True, mode=SSH.SFTP)
 
+            # self.client.get(local_path='/opt/shared-disk2/sychou/jars.zip', remote_path='./jars.zip', recursive=False, mode=SSH.STABLE)
+            # self.client.get(local_path='/opt/shared-disk2/sychou/transaction-features.csv', remote_path='./db_runner_workspace_test/temp/reports/transaction-features.csv', recursive=False, mode=SSH.STABLE)
+
         for i in range(self.TEST_LOOP_COUNT // 2):
             self.client.get(local_path=get_temp_dir(), remote_path='./server.jar', recursive=False, preserve_times=False, retry_count=3, is_raise_err=False)
             self.client.get(local_path=get_temp_dir(), remote_path='./server.jar', recursive=False, preserve_times=False, retry_count=3, is_raise_err=True)
@@ -486,11 +489,13 @@ class TestDBRunner(unittest.TestCase):
             self.dr.upload_jars(server_jar='data/jars/server.jar', client_jar='data/jars/client.jar')
             self.dr.load(alts=self.ARGS_LOAD, is_kill_java=True)
             for i in range(1):
+                # self.dr.bench(reports_path=get_temp_dir(), alts=self.ARGS_BENCH, is_pull_reports=True, is_delete_reports=True, 
+                #               is_kill_java=True, use_stable=False)
                 self.dr.bench(reports_path=get_temp_dir(), alts=self.ARGS_BENCH, is_pull_reports=True, is_delete_reports=True, 
-                              is_kill_java=True, use_stable=False)
+                              is_kill_java=True, use_stable=True)
 
             self.dr.bench(reports_path=get_temp_dir(), alts=self.ARGS_BENCH, is_pull_reports=False, is_delete_reports=False, 
-                          is_kill_java=True, use_stable=True)
+                          is_kill_java=True)
 
             # Check configuration bench.toml
             assert self.dr.get_bench_config(format=DBRunner.DICT)[self.ELASQLBENCH_NAME][self.INIT_RECORD_PER_PART_NAME] == self.INIT_RECORD_PER_PART

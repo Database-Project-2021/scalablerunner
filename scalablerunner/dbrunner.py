@@ -185,7 +185,7 @@ class DBRunner(BaseClass):
     
     def __scp_get(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
         self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
-                           remote_path=remote_path, local_path=local_path, recursive=recursive)
+                           remote_path=remote_path, local_path=local_path, recursive=recursive, mode=SSH.SCP)
     
     def __get_stable(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
         self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
@@ -572,11 +572,14 @@ class DBRunner(BaseClass):
         # Upload load.toml
         self.upload_load_config()
 
+        # Kill JAVA processes
+        self.kill_java()
+
         # Run load test bed
         stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} load -d {self.DB_NAME} -p {self.LOAD_CONFIG}', 
-                                                        going_msg=f"Loading test bed...", 
-                                                        finished_msg=f"Loaded test bed", 
-                                                        error_msg=f"Failed to load test bed")
+                                                                      going_msg=f"Loading test bed...", 
+                                                                      finished_msg=f"Loaded test bed", 
+                                                                      error_msg=f"Failed to load test bed")
         # Kill JAVA processes
         if is_kill_java:
             self.kill_java()
@@ -693,7 +696,8 @@ class DBRunner(BaseClass):
         :param str name: The directory name of the reports
         :param str path: The download path on the local host
         :param bool is_delete_reports: Whether to delete the reports on the remote host
-        :param bool use_stable: Determibe whether to use ``SSH.STABLE`` or not, the default value is ``False``, using ``SSH.SP``
+        :param bool use_stable: Determibe whether to use ``SSH.STABLE`` or not, the default value is ``False``, using ``SSH.SP``. 
+            But it's under construction.
         """
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
         self.__type_check(obj=path, obj_type=str, obj_name='path', is_allow_none=False)
@@ -703,10 +707,11 @@ class DBRunner(BaseClass):
         reports_dir = os.path.join(self.dbrunner_temp_path, name)
 
         if use_stable:
-            self.__get_stable(remote_path=reports_dir, local_path=path, recursive=True, 
-                              going_msg=f"Pulling reports '{name}' to local '{path}'...", 
-                              finished_msg=f"Pulled reports '{name}' to local '{path}'", 
-                              error_msg=f"Failed to pull reports '{name}' to local '{path}'")
+            self.__warning(f"Stable version is under construction, use default way instead.")
+            # self.__get_stable(remote_path=reports_dir, local_path=path, recursive=True, 
+            #                   going_msg=f"Pulling reports '{name}' to local '{path}'...", 
+            #                   finished_msg=f"Pulled reports '{name}' to local '{path}'", 
+            #                   error_msg=f"Failed to pull reports '{name}' to local '{path}'")
         else:
             self.__scp_get(remote_path=reports_dir, local_path=path, recursive=True, 
                            going_msg=f"Pulling reports '{name}' to local '{path}'...", 
@@ -746,6 +751,9 @@ class DBRunner(BaseClass):
 
         # Upload load.toml
         self.upload_bench_config()
+
+        # Kill JAVA processes
+        self.kill_java()
 
         # Run benchmark
         stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} benchmark -d {self.DB_NAME} -p {self.BENCH_CONFIG}', 
