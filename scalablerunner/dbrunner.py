@@ -191,7 +191,11 @@ class DBRunner(BaseClass):
     
     def __scp_get(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
         self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
-                           remote_path=remote_path, local_path=local_path, recursive=recursive)
+                           remote_path=remote_path, local_path=local_path, recursive=recursive, mode=SSH.SCP)
+    
+    def __get_stable(self, remote_path: str, local_path: str='', recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
+        self.__client_exec(fn_name='get', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
+                           remote_path=remote_path, local_path=local_path, recursive=recursive, mode=SSH.STABLE)
 
     def __large_put(self, files: str, remote_path: str, recursive: bool=False, going_msg: str=None, finished_msg: str=None, error_msg: str=None) -> None:
         self.__client_exec(fn_name='large_put', going_msg=going_msg, finished_msg=finished_msg, error_msg=error_msg,
@@ -594,6 +598,9 @@ class DBRunner(BaseClass):
         # Upload load.toml
         self.upload_load_config()
 
+        # Kill JAVA processes
+        self.kill_java()
+
         # Run load test bed
         stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} load -d {self.DB_NAME} -p {self.LOAD_CONFIG}', 
                                                                       going_msg=f"Loading test bed...", 
@@ -708,24 +715,34 @@ class DBRunner(BaseClass):
                                 error_msg=f"Failed to move stats '{reports_dir}' on host")
 
 
-    def pull_reports_to_local(self, name: str, path: str, is_delete_reports: bool=False) -> None:
+    def pull_reports_to_local(self, name: str, path: str, is_delete_reports: bool=False, use_stable=False) -> None:
         """
         Download the reports on the host to the local
 
         :param str name: The directory name of the reports
         :param str path: The download path on the local host
         :param bool is_delete_reports: Whether to delete the reports on the remote host
+        :param bool use_stable: Determibe whether to use ``SSH.STABLE`` or not, the default value is ``False``, using ``SSH.SP``. 
+            But it's under construction.
         """
         self.__type_check(obj=name, obj_type=str, obj_name='name', is_allow_none=False)
         self.__type_check(obj=path, obj_type=str, obj_name='path', is_allow_none=False)
         self.__type_check(obj=is_delete_reports, obj_type=bool, obj_name='is_delete_reports', is_allow_none=False)
+        self.__type_check(obj=use_stable, obj_type=bool, obj_name='use_stable', is_allow_none=False)
 
         reports_dir = os.path.join(self.dbrunner_temp_path, name)
 
-        self.__scp_get(remote_path=reports_dir, local_path=path, recursive=True, 
-                       going_msg=f"Pulling reports '{name}' to local '{path}'...", 
-                       finished_msg=f"Pulled reports '{name}' to local '{path}'", 
-                       error_msg=f"Failed to pull reports '{name}' to local '{path}'")
+        if use_stable:
+            self.__warning(f"Stable version is under construction, use default way instead.")
+            # self.__get_stable(remote_path=reports_dir, local_path=path, recursive=True, 
+            #                   going_msg=f"Pulling reports '{name}' to local '{path}'...", 
+            #                   finished_msg=f"Pulled reports '{name}' to local '{path}'", 
+            #                   error_msg=f"Failed to pull reports '{name}' to local '{path}'")
+        else:
+            self.__scp_get(remote_path=reports_dir, local_path=path, recursive=True, 
+                           going_msg=f"Pulling reports '{name}' to local '{path}'...", 
+                           finished_msg=f"Pulled reports '{name}' to local '{path}'", 
+                           error_msg=f"Failed to pull reports '{name}' to local '{path}'")
 
         if is_delete_reports:
             self.__ssh_exec_command(f"rm -rf {reports_dir}", 
@@ -733,7 +750,7 @@ class DBRunner(BaseClass):
                                     finished_msg=f"Deleted reports '{reports_dir}' on host", 
                                     error_msg=f"Failed to delete reports '{reports_dir}' on host")
 
-    def bench(self, reports_path: str, alts: dict=None, base_config: str=None, is_pull_reports: bool=True, is_delete_reports: bool=True, is_kill_java: bool=True) -> Tuple:
+    def bench(self, reports_path: str, alts: dict=None, base_config: str=None, is_pull_reports: bool=True, is_delete_reports: bool=True, is_kill_java: bool=True, use_stable=False) -> Tuple:
         """
         Run Benchmark
 
@@ -741,6 +758,7 @@ class DBRunner(BaseClass):
         :param dict alts: The modification would be applied to ``base_config``
         :param str base_config: The path of the load-config for Auto-Bencher and it would be modified by ``alts``
         :param bool is_delete_reports: Whether to delete the reports on the server, sequencer, and the remote host
+        :param bool use_stable: Determibe whether to use ``SSH.STABLE`` or not, the default value is ``False``, using ``SSH.SP``
         :return: A tupel contains the standard input/output/error stream after executing the command. 
         :rtype: Tuple[``paramiko.channel.ChannelStdinFile``, ``paramiko.channel.ChannelFile``, ``paramiko.channel.ChannelStderrFile``]
         """
@@ -760,6 +778,9 @@ class DBRunner(BaseClass):
         # Upload load.toml
         self.upload_bench_config()
 
+        # Kill JAVA processes
+        self.kill_java()
+
         # Run benchmark
         stdin, stdout, stderr, is_successed = self.__ssh_exec_command(f'cd {self.dbrunner_autobencher_path}; node src/main.js -c {self.BENCHER_CONFIG} benchmark -d {self.DB_NAME} -p {self.BENCH_CONFIG}', 
                                                                       going_msg=f"Benchmarking...", 
@@ -770,7 +791,7 @@ class DBRunner(BaseClass):
         if is_pull_reports:
             self.collect_results(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
             self.move_stats(name=self.REPORTS_ON_HOST_DIR, is_delete_reports=is_delete_reports)
-            self.pull_reports_to_local(name=self.REPORTS_ON_HOST_DIR, path=reports_path, is_delete_reports=is_delete_reports)
+            self.pull_reports_to_local(name=self.REPORTS_ON_HOST_DIR, path=reports_path, is_delete_reports=is_delete_reports, use_stable=use_stable)
             
         # Kill JAVA processes
         if is_kill_java:
