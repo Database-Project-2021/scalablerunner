@@ -1,7 +1,7 @@
 
 [system]
 user_name = "db-under"
-remote_work_dir = "auto-bencher-workspace"
+remote_work_dir = "auto-bencher-workspace-dbrunner"
 
 [jdk]
 use_custom_jdk = true # Reserved.
