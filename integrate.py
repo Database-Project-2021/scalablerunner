@@ -8,6 +8,7 @@ from scalablerunner.ssh import SSH
 from scalablerunner.dbrunner import DBRunner
 from scalablerunner.util import info, BaseClass
 from scalablerunner.taskrunner import TaskRunner
+from cost_estimator import Loader
 
 # Global variables
 host_infos_file = 'host_infos.toml'
@@ -98,11 +99,17 @@ class PopCat(BaseClass):
         self.close()
 
         # Fix bug temporary
+        src_rp_path = os.path.join(rp_path, '*')
         dest_rp_path = name_fn(reports_path=self.report_dest, alts=alts)
         current_file_path = os.path.dirname(os.path.abspath(__file__))
-        cmd = f'cd {current_file_path}; mv {rp_path} {dest_rp_path};'
+        cmd = f'cd {current_file_path}; mv {src_rp_path} {dest_rp_path}; rm -r {rp_path};'
         print(cmd)
         os.system(cmd)
+
+    def process_pickle(self, name_fn: callable, alts: dict):
+        rp_path = name_fn(reports_path=self.report_dest, alts=alts)
+        loader = Loader(f'{rp_path}', server_count=4, n_jobs=16)
+        
 
     def __remote_estimator(self):
         """
@@ -204,46 +211,47 @@ if __name__ == '__main__':
     dest_base_path = '/opt/shared-disk2/db_betterRTE_ver2'
     base_path = 'temp/betterRTE'
     log_file = 'temp/betterRTE/betterRTE.log'
-    num_round = 3
+    start_round = 4
+    num_round = 5
     
     # MMT
-    # for i in range(0, num_round, 1):
-    #     pc = PopCat(reports_path=os.path.join(base_path, f'round{i}', 'mmt'), report_dest=os.path.join(dest_base_path, f'round{i}', 'mmt'), 
-    #                 bench_type=PopCat.TPCC, workspace=cw['workspace'], log_file=log_file)
-    #     pc.config(server_count=4, sequencer=cw['sequencer'], servers=cw['servers'], clients=cw['clients'])
+    for i in range(start_round, num_round, 1):
+        pc = PopCat(reports_path=os.path.join(base_path, f'round{i}', 'mmt'), report_dest=os.path.join(dest_base_path, f'round{i}', 'mmt'), 
+                    bench_type=PopCat.TPCC, workspace=cw['workspace'], log_file=log_file)
+        pc.config(server_count=4, sequencer=cw['sequencer'], servers=cw['servers'], clients=cw['clients'])
 
-    #     # pc.init_load(server_jar=server_jar, client_jar=server_jar, alts=cw['load_alts'][0], base_config=cw['load_base_config'][0])
-    #     # pc.benchmark(name_fn=name_fn, alts=cw['bench_alts'][0], base_config=cw['bench_base_config'][0])
+        # pc.init_load(server_jar=server_jar, client_jar=server_jar, alts=cw['load_alts'][0], base_config=cw['load_base_config'][0])
+        # pc.benchmark(name_fn=name_fn, alts=cw['bench_alts'][0], base_config=cw['bench_base_config'][0])
 
-    #     config_mmt = {
-    #         'Section Initialize | 4 server | MMT': {
-    #             'Group CW': {
-    #                 'Call': pc.init_load,
-    #                 'Param': {
-    #                     'server_jar': [server_jar], 
-    #                     'client_jar': [client_jar],
-    #                     'alts': cw['load_alts'],
-    #                     'base_config': cw['load_base_config_mmt'],
-    #                 }
-    #             },
-    #         },
-    #         'Section Benchmark | 4 server | MMT': {
-    #             'Group CW': {
-    #                 'Call': pc.benchmark,
-    #                 'Param': {
-    #                     'name_fn': [name_fn_mmt],
-    #                     'alts': cw['bench_alts'],
-    #                     'base_config': cw['bench_base_config_mmt']
-    #                 }
-    #             },
-    #         }
-    #     }
+        config_mmt = {
+            'Section Initialize | 4 server | MMT': {
+                'Group CW': {
+                    'Call': pc.init_load,
+                    'Param': {
+                        'server_jar': [server_jar], 
+                        'client_jar': [client_jar],
+                        'alts': cw['load_alts'],
+                        'base_config': cw['load_base_config_mmt'],
+                    }
+                },
+            },
+            'Section Benchmark | 4 server | MMT': {
+                'Group CW': {
+                    'Call': pc.benchmark,
+                    'Param': {
+                        'name_fn': [name_fn_mmt],
+                        'alts': cw['bench_alts'],
+                        'base_config': cw['bench_base_config_mmt']
+                    }
+                },
+            }
+        }
 
-    #     tr = TaskRunner(config=config_mmt)
-    #     tr.run()
+        tr = TaskRunner(config=config_mmt)
+        tr.run()
 
     # MMG
-    for i in range(0, num_round, 1):
+    for i in range(start_round, num_round, 1):
         pc = PopCat(reports_path=os.path.join(base_path, f'round{i}', 'mmg'), report_dest=os.path.join(dest_base_path, f'round{i}', 'mmg'), 
                     bench_type=PopCat.YCSB, workspace=cw['workspace'], log_file=log_file)
         pc.config(server_count=4, sequencer=cw['sequencer'], servers=cw['servers'], clients=cw['clients'])
