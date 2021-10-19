@@ -11,8 +11,16 @@ from numpy.core.records import array
 
 # paramiko.sftp_file.SFTPFile.MAX_REQUEST_SIZE = pow(2, 22) # 4MB per chunk
 
+def make_path(p):
+    if not os.path.exists(p):
+        os.makedirs(p)
+    return p
+
 def check_betteRTE():
-    base_path = '/opt/shared-disk2/db_betterRTE/'
+    under_stat = ['throughput.csv', 'job-0-timeline.csv']
+    under_folder = ['']
+    # base_path = '/opt/shared-disk2/db_betterRTE/'
+    base_path = '/opt/shared-disk2/db_betterRTE_ver2/'
     round_range = range(0, 3)
     for round in round_range:
         print(f"Round {round}")
@@ -60,6 +68,7 @@ def save_non_dependent_ous(npy_path: str, workload_type: str, server_count: int,
     # n_rows = 10
 
     for ou in ous:
+        ou_path = make_path(os.path.join(npy_path))
         ou_latency_mean_sum = 0
         ou_latency_std_sum = 0
         ou_latency_means = []
@@ -68,39 +77,40 @@ def save_non_dependent_ous(npy_path: str, workload_type: str, server_count: int,
         for rte in rtes:
             for round in rounds:
                 print(f"RTE {rte} | Round {round}")
-                loader = Loader(f'/opt/shared-disk2/db_betterRTE/round{round}/{workload_type}/{workload_type}_rte-{rte}/reports/', 
+                loader = Loader(f'/opt/shared-disk2/db_betterRTE_ver2/round{round}/{workload_type}/{workload_type}_rte-{rte}/reports/', 
                                 server_count=server_count, n_jobs=8, n_rows=n_rows)
 
-                df_features = loader.load_features_as_df()
-                df_latencies = loader.load_latencies_as_df()
+                df_features = loader.load_features_as_df(auto_save=True, load_from_pkl=True)
+                df_latencies = loader.load_latencies_as_df(auto_save=True, load_from_pkl=True)
                 psr = Preprocessor(df_features, df_latencies, ou, warmup_interval_second=warmup_sec)
                 # psr.drop_warmup_data()
 
                 ou_latency_mean_sum += float(psr.get_label().mean())
                 ou_latency_std_sum += float(psr.get_label().std())
-                print(f"OU Latency Mean Sum: {ou_latency_mean_sum}")
-                print(f"OU Latency Std Sum: {ou_latency_std_sum}")
+                # print(f"OU Latency Mean Sum: {ou_latency_mean_sum}")
+                # print(f"OU Latency Std Sum: {ou_latency_std_sum}")
 
             ou_latency_mean = ou_latency_mean_sum / len(rounds)
             ou_latency_std = ou_latency_std_sum / len(rounds)
-            print(f"OU Latency Mean: {ou_latency_mean}")
-            print(f"OU Latency Std: {ou_latency_std}")
+            # print(f"OU Latency Mean: {ou_latency_mean}")
+            # print(f"OU Latency Std: {ou_latency_std}")
             ou_latency_means.append(ou_latency_mean)
             ou_latency_stds.append(ou_latency_std)
-            print(f"OU Latency Means: {ou_latency_means}")
-            print(f"OU Latency Stds: {ou_latency_stds}")
+            # print(f"OU Latency Means: {ou_latency_means}")
+            # print(f"OU Latency Stds: {ou_latency_stds}")
         
         ou_latency_means_np = np.array(ou_latency_means)
         ou_latency_stds_np = np.array(ou_latency_stds)
-        print(f"OU Latency Means NP: {ou_latency_means_np}")
-        print(f"OU Latency Stds NP: {ou_latency_stds_np}")
+        # print(f"OU Latency Means NP: {ou_latency_means_np}")
+        # print(f"OU Latency Stds NP: {ou_latency_stds_np}")
         ou_latency = np.stack((ou_latency_means_np, ou_latency_stds_np))
-        print(f"OU Latency: {ou_latency}")
-        np.save(os.path.join(npy_path, f"{ou}.npy"), ou_latency)
+        # print(f"OU Latency: {ou_latency}")        
+        np.save(os.path.join(ou_path, f"{ou}.npy"), ou_latency)
 
 def draw_non_dependent_ous(npy_path: str, workload_type: str, server_count: str, warmup_sec: int, ous: List, rounds: List, rtes: List, n_rows: int=None):
     npy_path = 'temp/betterRTE/npy'
     ous = ['OU1 - Generate Plan', 'OU2 - Initialize Thread', 'OU3 - Acquire Locks', 'OU4 - Read from Local']
+    os_chart_path = make_path(os.path.join("temp/betterRTE/chart"))
 
     for ou in ous:
         ou_data = np.load(os.path.join(npy_path, f"{ou}.npy"))
@@ -112,17 +122,18 @@ def draw_non_dependent_ous(npy_path: str, workload_type: str, server_count: str,
         plt.title(f"Mean Latency Of {ou} Along The Number Of RTEs On {workload_type} With {server_count} Servers")
         plt.xlabel("Num of RTEs")
         plt.ylabel("Mean Latency of the OU")
-        plt.savefig(os.path.join("temp/betterRTE/chart", f"{ou}.png"))
+        plt.savefig(os.path.join(os_chart_path, f"{ou}.png"))
 
 # %%
 if __name__ == '__main__':
     # check_betteRTE()
     npy_path = 'temp/betterRTE/npy'
-    workload_type = 'mmg'
+    workload_type = 'mmt'
     server_count = 4
     warmup_sec = 90
     ous = ['OU1 - Generate Plan', 'OU2 - Initialize Thread', 'OU3 - Acquire Locks', 'OU4 - Read from Local']
     rounds = [0, 1, 2]
+    # rounds = [0]
     rtes = [1] + list(range(5, 201, 5))
     n_rows = None
     
