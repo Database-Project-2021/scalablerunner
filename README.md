@@ -21,7 +21,7 @@ pip install git+https://github.com/Database-Project-2021/scalablerunner.git
 Create a ``host_infos.toml`` file under the root diretory of this package like
 
 ```
-- Runner
+- scalablerunner
     - scalablerunner
     - README.md
     - host_infos.toml
